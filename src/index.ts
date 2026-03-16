@@ -63,6 +63,12 @@ const injectInstance = (tool: Tool): Tool => ({
 // Tool definitions with proper MCP schema
 const rawTools: Tool[] = [
   {
+    name: "jenkins_list_instances",
+    description:
+      "List all configured Jenkins instances with their names and URLs",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
     name: "jenkins_list_jobs",
     description: "List all Jenkins jobs with their names and URLs",
     inputSchema: {
@@ -617,6 +623,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params
 
   try {
+    if (name === "jenkins_list_instances") {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              Array.from(clients.entries()).map(([instanceName, c]) => ({
+                name: instanceName,
+                url: c.baseUrl,
+              })),
+              null,
+              2,
+            ),
+          },
+        ],
+      }
+    }
+
     const handler = toolHandlers[name]
     if (!handler) {
       throw new McpError("TOOL_NOT_FOUND", `Unknown tool: ${name}`, 404)

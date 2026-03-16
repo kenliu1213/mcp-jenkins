@@ -718,7 +718,13 @@ Apply and restart the IDE.
 | `jenkins_get_version`     | Get Jenkins version     |
 | `jenkins_get_plugins`     | List installed plugins  |
 
-**Total: 25 Tools** covering ~90% of Jenkins API operations!
+### 🔀 Instances (1 tool)
+
+| Tool                     | Description                                   |
+| ------------------------ | --------------------------------------------- |
+| `jenkins_list_instances` | List all configured instances with their URLs |
+
+**Total: 26 Tools** covering ~90% of Jenkins API operations!
 
 ---
 
