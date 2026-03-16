@@ -27,7 +27,8 @@
 ## 🌟 Features
 
 - **🔐 Flexible Authentication** - Bearer tokens, Basic auth, OAuth support
-- **⚙️ Flexible Configuration** - CLI args, MCP_JENKINS_*, or JENKINS_* env vars (priority-based)
+- **⚙️ Flexible Configuration** - CLI args, MCP*JENKINS*\_, or JENKINS\_\_ env vars (priority-based)
+- **🔀 Multi-Instance Support** - Connect to multiple Jenkins servers in one MCP entry, select per tool call
 - **🛠️ 25+ Tools** - Complete Jenkins API coverage
 - **⚡ Modern Stack** - TypeScript 5.3+, ES2023, Native Fetch API
 - **📦 MCP Protocol** - Native integration with Claude Desktop, Claude Code CLI
@@ -69,12 +70,13 @@ npm run build
 The server supports **3 ways** to provide configuration (highest to lowest priority):
 
 1. **CLI arguments** - `--url`, `--user`, `--api-token`, `--bearer-token`
-2. **MCP_JENKINS_*** environment variables - `MCP_JENKINS_URL`, `MCP_JENKINS_USER`, etc.
-3. **JENKINS_*** environment variables - `JENKINS_URL`, `JENKINS_USER`, etc.
+2. **MCP*JENKINS*\*** environment variables - `MCP_JENKINS_URL`, `MCP_JENKINS_USER`, etc.
+3. **JENKINS\_\*** environment variables - `JENKINS_URL`, `JENKINS_USER`, etc.
 
 ### Quick Setup Example (Claude CLI)
 
 **Using CLI arguments (recommended for AI assistants like Copilot):**
+
 ```bash
 claude mcp add --transport stdio --scope user jenkins \
   -- npx --yes @kud/mcp-jenkins@latest \
@@ -84,6 +86,7 @@ claude mcp add --transport stdio --scope user jenkins \
 ```
 
 **Using environment variables:**
+
 ```bash
 claude mcp add --transport stdio --scope user jenkins \
   --env JENKINS_URL=https://your-jenkins.com \
@@ -93,6 +96,7 @@ claude mcp add --transport stdio --scope user jenkins \
 ```
 
 **If installed locally:**
+
 ```bash
 claude mcp add --transport stdio --scope user jenkins \
   -- node ~/path/to/mcp-jenkins/dist/index.js \
@@ -131,6 +135,7 @@ Choose your development environment:
 Add the Jenkins MCP server to Claude CLI:
 
 **Via npm with CLI args (recommended):**
+
 ```bash
 claude mcp add --transport stdio --scope user jenkins \
   -- npx --yes @kud/mcp-jenkins@latest \
@@ -140,6 +145,7 @@ claude mcp add --transport stdio --scope user jenkins \
 ```
 
 **Via npm with env vars:**
+
 ```bash
 claude mcp add --transport stdio --scope user jenkins \
   --env JENKINS_URL=https://pipeline.yourcompany.com \
@@ -149,12 +155,24 @@ claude mcp add --transport stdio --scope user jenkins \
 ```
 
 **Local installation with CLI args:**
+
 ```bash
 claude mcp add --transport stdio --scope user jenkins \
   -- node $HOME/path/to/mcp-jenkins/dist/index.js \
   --url https://pipeline.yourcompany.com \
   --user your_username \
   --api-token your_api_token
+```
+
+**Multiple Jenkins instances:**
+
+```bash
+claude mcp add --transport stdio --scope user jenkins \
+  --env MCP_JENKINS_URL="https://pipeline.yourcompany.com,https://scheduler.yourcompany.com" \
+  --env MCP_JENKINS_USER="your_username,your_username" \
+  --env MCP_JENKINS_API_TOKEN="token1,token2" \
+  -- npx --yes @kud/mcp-jenkins@latest
+# Instances named "pipeline" and "scheduler" automatically from hostnames
 ```
 
 Verify: `claude mcp list` should show `jenkins`
@@ -173,6 +191,7 @@ Verify: `claude mcp list` should show `jenkins`
 **⚠️ Not supported.** Claude.ai web interface doesn't support custom MCP servers yet.
 
 **Alternatives:**
+
 - Use desktop clients (see below)
 - Use CLI tools (see above)
 - Test via MCP Inspector: `npm run inspect:dev` → `http://localhost:5173`
@@ -191,11 +210,13 @@ Verify: `claude mcp list` should show `jenkins`
 #### 1. Open Configuration File
 
 **macOS:**
+
 ```bash
 open ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
 **Windows:**
+
 ```bash
 notepad %APPDATA%\Claude\claude_desktop_config.json
 ```
@@ -203,16 +224,21 @@ notepad %APPDATA%\Claude\claude_desktop_config.json
 #### 2. Add Configuration
 
 **Via npm with CLI args (recommended):**
+
 ```json
 {
   "mcpServers": {
     "jenkins": {
       "command": "npx",
       "args": [
-        "--yes", "@kud/mcp-jenkins@latest",
-        "--url", "https://pipeline.yourcompany.com",
-        "--user", "your_username",
-        "--api-token", "your_api_token"
+        "--yes",
+        "@kud/mcp-jenkins@latest",
+        "--url",
+        "https://pipeline.yourcompany.com",
+        "--user",
+        "your_username",
+        "--api-token",
+        "your_api_token"
       ]
     }
   }
@@ -220,6 +246,7 @@ notepad %APPDATA%\Claude\claude_desktop_config.json
 ```
 
 **Via npm with env vars:**
+
 ```json
 {
   "mcpServers": {
@@ -237,6 +264,7 @@ notepad %APPDATA%\Claude\claude_desktop_config.json
 ```
 
 **Local installation with CLI args:**
+
 ```json
 {
   "mcpServers": {
@@ -244,9 +272,12 @@ notepad %APPDATA%\Claude\claude_desktop_config.json
       "command": "node",
       "args": [
         "/absolute/path/to/mcp-jenkins/dist/index.js",
-        "--url", "https://pipeline.yourcompany.com",
-        "--user", "your_username",
-        "--api-token", "your_api_token"
+        "--url",
+        "https://pipeline.yourcompany.com",
+        "--user",
+        "your_username",
+        "--api-token",
+        "your_api_token"
       ]
     }
   }
@@ -254,16 +285,38 @@ notepad %APPDATA%\Claude\claude_desktop_config.json
 ```
 
 **Bearer token example:**
+
 ```json
 {
   "mcpServers": {
     "jenkins": {
       "command": "npx",
       "args": [
-        "--yes", "@kud/mcp-jenkins@latest",
-        "--url", "https://pipeline.yourcompany.com",
-        "--bearer-token", "your_bearer_token"
+        "--yes",
+        "@kud/mcp-jenkins@latest",
+        "--url",
+        "https://pipeline.yourcompany.com",
+        "--bearer-token",
+        "your_bearer_token"
       ]
+    }
+  }
+}
+```
+
+**Multiple Jenkins instances:**
+
+```json
+{
+  "mcpServers": {
+    "jenkins": {
+      "command": "npx",
+      "args": ["--yes", "@kud/mcp-jenkins@latest"],
+      "env": {
+        "MCP_JENKINS_URL": "https://pipeline.yourcompany.com,https://scheduler.yourcompany.com",
+        "MCP_JENKINS_USER": "your_username,your_username",
+        "MCP_JENKINS_API_TOKEN": "token1,token2"
+      }
     }
   }
 }
@@ -304,6 +357,24 @@ Settings (Cmd+, / Ctrl+,) → Search "Cline: MCP Settings" → Edit in settings.
 }
 ```
 
+**Multiple Jenkins instances:**
+
+```json
+{
+  "cline.mcpServers": {
+    "jenkins": {
+      "command": "npx",
+      "args": ["@kud/mcp-jenkins"],
+      "env": {
+        "MCP_JENKINS_URL": "https://pipeline.yourcompany.com,https://scheduler.yourcompany.com",
+        "MCP_JENKINS_USER": "your_username,your_username",
+        "MCP_JENKINS_API_TOKEN": "token1,token2"
+      }
+    }
+  }
+}
+```
+
 Or for local installation, use `"command": "node"` and `"args": ["/absolute/path/to/mcp-jenkins/dist/index.js"]`
 
 **Claude Dev / Continue:**
@@ -315,7 +386,6 @@ Reload window after configuration
 </details>
 
 ---
-
 
 ### 🌐 Cursor
 
@@ -336,6 +406,24 @@ Settings (Cmd+, / Ctrl+,) → Search "MCP" → Edit Config or open `~/.cursor/mc
         "JENKINS_URL": "https://pipeline.yourcompany.com",
         "JENKINS_USER": "your_username",
         "JENKINS_API_TOKEN": "your_api_token"
+      }
+    }
+  }
+}
+```
+
+**Multiple Jenkins instances:**
+
+```json
+{
+  "mcpServers": {
+    "jenkins": {
+      "command": "npx",
+      "args": ["--yes", "@kud/mcp-jenkins@latest"],
+      "env": {
+        "MCP_JENKINS_URL": "https://pipeline.yourcompany.com,https://scheduler.yourcompany.com",
+        "MCP_JENKINS_USER": "your_username,your_username",
+        "MCP_JENKINS_API_TOKEN": "token1,token2"
       }
     }
   }
@@ -375,6 +463,24 @@ Settings → **AI Settings** → **Model Context Protocol** → Add Server:
 }
 ```
 
+**Multiple Jenkins instances:**
+
+```json
+{
+  "mcpServers": {
+    "jenkins": {
+      "command": "npx",
+      "args": ["--yes", "@kud/mcp-jenkins@latest"],
+      "env": {
+        "MCP_JENKINS_URL": "https://pipeline.yourcompany.com,https://scheduler.yourcompany.com",
+        "MCP_JENKINS_USER": "your_username,your_username",
+        "MCP_JENKINS_API_TOKEN": "token1,token2"
+      }
+    }
+  }
+}
+```
+
 Or edit `~/.windsurf/mcp_settings.json` directly. For local installation, use `"command": "node"` with full path.
 
 Restart Windsurf after configuration.
@@ -393,6 +499,7 @@ Restart Windsurf after configuration.
 **⚠️ Not supported.** GitHub Copilot doesn't support MCP servers.
 
 **Options:**
+
 - **In VSCode:** Install Copilot + Cline/Claude Dev. Use Copilot for coding, Cline/Claude Dev for Jenkins (see VSCode section)
 - **In terminal:** Use Copilot for coding suggestions, an MCP-compatible CLI for Jenkins (see CLI sections above)
 - **No MCP:** Use code in `src/lib/jenkins-client.ts` as examples for direct API calls
@@ -420,10 +527,14 @@ Create or edit `~/.copilot/mcp-config.json`:
     "jenkins": {
       "command": "npx",
       "args": [
-        "--yes", "@kud/mcp-jenkins@latest",
-        "--url", "https://pipeline.yourcompany.com",
-        "--user", "your_username",
-        "--api-token", "your_api_token"
+        "--yes",
+        "@kud/mcp-jenkins@latest",
+        "--url",
+        "https://pipeline.yourcompany.com",
+        "--user",
+        "your_username",
+        "--api-token",
+        "your_api_token"
       ]
     }
   }
@@ -478,11 +589,30 @@ copilot --additional-mcp-config @jenkins-mcp.json
 ```
 
 For local installation, use `"command": "node"` with path in args:
+
 ```json
 "args": ["/absolute/path/to/mcp-jenkins/dist/index.js", "--url", "...", "--user", "...", "--api-token", "..."]
 ```
 
-#### Option 4: Allow All Tools (Non-Interactive)
+#### Option 4: Multiple Jenkins instances
+
+```json
+{
+  "mcpServers": {
+    "jenkins": {
+      "command": "npx",
+      "args": ["--yes", "@kud/mcp-jenkins@latest"],
+      "env": {
+        "MCP_JENKINS_URL": "https://pipeline.yourcompany.com,https://scheduler.yourcompany.com",
+        "MCP_JENKINS_USER": "your_username,your_username",
+        "MCP_JENKINS_API_TOKEN": "token1,token2"
+      }
+    }
+  }
+}
+```
+
+#### Option 5: Allow All Tools (Non-Interactive)
 
 For scripts and automation:
 
@@ -513,6 +643,14 @@ Settings (Cmd+, / Ctrl+,) → **Tools** → **AI Assistant** → **Model Context
   JENKINS_API_TOKEN=your_api_token
   ```
 
+**Multiple Jenkins instances:** set these environment variables:
+
+```
+MCP_JENKINS_URL=https://pipeline.yourcompany.com,https://scheduler.yourcompany.com
+MCP_JENKINS_USER=your_username,your_username
+MCP_JENKINS_API_TOKEN=token1,token2
+```
+
 For local installation, use **Command:** `node` and **Arguments:** `/absolute/path/to/mcp-jenkins/dist/index.js`
 
 Apply and restart the IDE.
@@ -520,6 +658,7 @@ Apply and restart the IDE.
 **Alternative:** If MCP not available, use MCP-compatible CLI from built-in terminal (Alt+F12 / ⌥F12)
 
 **Notes:**
+
 - Ultimate/Professional editions: Full AI Assistant MCP support
 - Community editions: Use MCP-compatible CLI from terminal instead
 
@@ -531,53 +670,53 @@ Apply and restart the IDE.
 
 ### 📋 Job Operations (5 tools)
 
-| Tool | Description |
-|------|-------------|
-| `jenkins_list_jobs` | List all Jenkins jobs |
-| `jenkins_search_jobs` | Search jobs by name |
-| `jenkins_get_job_status` | Get last build status |
-| `jenkins_enable_job` | Enable a disabled job |
-| `jenkins_disable_job` | Disable a job |
-| `jenkins_delete_job` | Delete a job (⚠️ permanent) |
-| `jenkins_get_job_config` | Get job XML configuration |
+| Tool                     | Description                 |
+| ------------------------ | --------------------------- |
+| `jenkins_list_jobs`      | List all Jenkins jobs       |
+| `jenkins_search_jobs`    | Search jobs by name         |
+| `jenkins_get_job_status` | Get last build status       |
+| `jenkins_enable_job`     | Enable a disabled job       |
+| `jenkins_disable_job`    | Disable a job               |
+| `jenkins_delete_job`     | Delete a job (⚠️ permanent) |
+| `jenkins_get_job_config` | Get job XML configuration   |
 
 ### 🔨 Build Operations (9 tools)
 
-| Tool | Description |
-|------|-------------|
-| `jenkins_get_build_status` | Get specific build status |
-| `jenkins_get_recent_builds` | Get recent builds (last N) |
-| `jenkins_trigger_build` | Trigger a new build |
-| `jenkins_stop_build` | Stop/abort running build |
-| `jenkins_delete_build` | Delete a build |
-| `jenkins_replay_build` | Replay a pipeline build |
-| `jenkins_get_console_log` | Get build console output |
-| `jenkins_get_build_changes` | Get Git commits for build |
-| `jenkins_get_pipeline_stages` | Get pipeline stage status |
+| Tool                          | Description                |
+| ----------------------------- | -------------------------- |
+| `jenkins_get_build_status`    | Get specific build status  |
+| `jenkins_get_recent_builds`   | Get recent builds (last N) |
+| `jenkins_trigger_build`       | Trigger a new build        |
+| `jenkins_stop_build`          | Stop/abort running build   |
+| `jenkins_delete_build`        | Delete a build             |
+| `jenkins_replay_build`        | Replay a pipeline build    |
+| `jenkins_get_console_log`     | Get build console output   |
+| `jenkins_get_build_changes`   | Get Git commits for build  |
+| `jenkins_get_pipeline_stages` | Get pipeline stage status  |
 
 ### 🧪 Testing & Artifacts (3 tools)
 
-| Tool | Description |
-|------|-------------|
-| `jenkins_get_test_results` | Get test pass/fail counts |
-| `jenkins_list_artifacts` | List build artifacts |
-| `jenkins_get_artifact` | Download artifact (base64) |
+| Tool                       | Description                |
+| -------------------------- | -------------------------- |
+| `jenkins_get_test_results` | Get test pass/fail counts  |
+| `jenkins_list_artifacts`   | List build artifacts       |
+| `jenkins_get_artifact`     | Download artifact (base64) |
 
 ### 📊 Queue Management (2 tools)
 
-| Tool | Description |
-|------|-------------|
-| `jenkins_get_queue` | View pending builds |
+| Tool                   | Description         |
+| ---------------------- | ------------------- |
+| `jenkins_get_queue`    | View pending builds |
 | `jenkins_cancel_queue` | Cancel queued build |
 
 ### 🖥️ System Information (5 tools)
 
-| Tool | Description |
-|------|-------------|
-| `jenkins_list_nodes` | List all agents/nodes |
+| Tool                      | Description             |
+| ------------------------- | ----------------------- |
+| `jenkins_list_nodes`      | List all agents/nodes   |
 | `jenkins_get_system_info` | Get Jenkins system info |
-| `jenkins_get_version` | Get Jenkins version |
-| `jenkins_get_plugins` | List installed plugins |
+| `jenkins_get_version`     | Get Jenkins version     |
+| `jenkins_get_plugins`     | List installed plugins  |
 
 **Total: 25 Tools** covering ~90% of Jenkins API operations!
 
@@ -645,16 +784,16 @@ mcp-jenkins/
 
 ### Available Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm run build` | Compile TypeScript to JavaScript |
-| `npm run build:watch` | Watch mode - rebuild on changes |
-| `npm run dev` | Run in development (tsx) |
-| `npm start` | Run compiled server |
-| `npm run inspect` | Open MCP inspector |
+| Script                | Description                      |
+| --------------------- | -------------------------------- |
+| `npm run build`       | Compile TypeScript to JavaScript |
+| `npm run build:watch` | Watch mode - rebuild on changes  |
+| `npm run dev`         | Run in development (tsx)         |
+| `npm start`           | Run compiled server              |
+| `npm run inspect`     | Open MCP inspector               |
 | `npm run inspect:dev` | Inspector in dev mode (no build) |
-| `npm run typecheck` | Type check without building |
-| `npm run clean` | Remove build artifacts |
+| `npm run typecheck`   | Type check without building      |
+| `npm run clean`       | Remove build artifacts           |
 
 ### Development Workflow
 
@@ -684,16 +823,16 @@ Opens `http://localhost:5173` - test all tools interactively!
 
 ```typescript
 // src/tools/my-new-tool.ts
-import { JenkinsClient } from '../lib/jenkins-client.js';
+import { JenkinsClient } from "../lib/jenkins-client.js"
 
 export interface MyToolInput {
-  someParam: string;
+  someParam: string
 }
 
 export const myNewTool = async (client: JenkinsClient, input: MyToolInput) => {
   // Implementation
-  return { result: 'success' };
-};
+  return { result: "success" }
+}
 ```
 
 2. Add method to `JenkinsClient` (src/lib/jenkins-client.ts)
@@ -704,6 +843,7 @@ export const myNewTool = async (client: JenkinsClient, input: MyToolInput) => {
    - Add to `toolHandlers` map
 
 4. Rebuild:
+
 ```bash
 npm run build
 ```
@@ -722,21 +862,62 @@ The server uses a **3-tier priority system** for configuration:
    - `--api-token <token>` - API token for Basic auth
    - `--bearer-token <token>` - Bearer token for OAuth/token auth
 
-2. **MCP_JENKINS_* Environment Variables** (Medium Priority)
+2. **MCP*JENKINS*\* Environment Variables** (Medium Priority)
    - `MCP_JENKINS_URL`
    - `MCP_JENKINS_USER`
    - `MCP_JENKINS_API_TOKEN`
    - `MCP_JENKINS_BEARER_TOKEN`
 
-3. **JENKINS_* Environment Variables** (Lowest Priority)
+3. **JENKINS\_\* Environment Variables** (Lowest Priority)
    - `JENKINS_URL`
    - `JENKINS_USER`
    - `JENKINS_API_TOKEN`
    - `JENKINS_BEARER_TOKEN`
 
+### Multiple Instances
+
+Connect to more than one Jenkins server in a single MCP entry using comma or pipe-separated values.
+
+**Automatic naming (derived from URL hostname):**
+
+```bash
+export MCP_JENKINS_URL="https://pipeline.yourcompany.com,https://scheduler.yourcompany.com"
+export MCP_JENKINS_USER="your_username,your_username"
+export MCP_JENKINS_API_TOKEN="token1,token2"
+# Instances are automatically named "pipeline" and "scheduler"
+```
+
+**Custom naming with `MCP_JENKINS_INSTANCES`:**
+
+Use `MCP_JENKINS_INSTANCES` when you want explicit names (e.g., the hostname isn't descriptive enough, or both instances share the same host):
+
+```bash
+export MCP_JENKINS_INSTANCES="ci,prod"
+export MCP_JENKINS_URL="https://jenkins.yourcompany.com/ci,https://jenkins.yourcompany.com/prod"
+export MCP_JENKINS_USER="your_username,your_username"
+export MCP_JENKINS_API_TOKEN="token1,token2"
+# Instances are named "ci" and "prod"
+```
+
+The number of values in `MCP_JENKINS_INSTANCES` must match the number of URLs.
+
+Then pass `instance` in tool calls:
+
+```
+"Trigger a build for 'deploy' on the scheduler instance"
+"List jobs on ci"
+```
+
+The first instance is always the default — tools work without `instance` if you only have one server.
+
+> **Note:** Use `|` as delimiter instead of `,` if any value might contain a comma (e.g., unusual URLs).
+
+---
+
 ### Why This Matters
 
 This priority system allows you to:
+
 - **Mix sources**: Use CLI args for URL but env vars for credentials
 - **Override easily**: CLI args always win, great for testing different servers
 - **Namespace safely**: `MCP_JENKINS_*` vars won't conflict with other Jenkins tools
@@ -744,17 +925,20 @@ This priority system allows you to:
 ### Examples
 
 **All CLI args:**
+
 ```bash
 node dist/index.js --url https://jenkins.com --user admin --api-token abc123
 ```
 
 **Mixed (CLI overrides env):**
+
 ```bash
 JENKINS_USER=dev_user node dist/index.js --url https://jenkins.com --api-token xyz789
 # Uses: URL from CLI, token from CLI, user from env
 ```
 
 **All env vars with priority:**
+
 ```bash
 JENKINS_URL=https://fallback.com \
 MCP_JENKINS_URL=https://primary.com \
@@ -771,12 +955,14 @@ node dist/index.js
 Follow these steps to create an API token for the MCP server:
 
 #### Step 1: Access Security Settings
+
 1. Log in to your Jenkins instance
 2. Click your **username** in the top-right corner
 3. Select **Configure** from the dropdown menu
 4. In the left sidebar, click **Security**
 
 #### Step 2: Create API Token
+
 1. Scroll to the **API Token** section
 2. Under "Current token(s)", click the **Add new token** button
 3. Enter a descriptive name (e.g., "Jenkins MCP" or "AI Assistant")
@@ -784,7 +970,9 @@ Follow these steps to create an API token for the MCP server:
 5. **⚠️ IMPORTANT:** Copy the token immediately - it will only be shown once!
 
 #### Step 3: Save the Token
+
 Store the token securely - you'll need it for configuration:
+
 - For Bearer Token auth: Use it as `JENKINS_BEARER_TOKEN`
 - For Basic auth: Use it as `JENKINS_API_TOKEN` (along with `JENKINS_USER`)
 
@@ -795,11 +983,13 @@ Store the token securely - you'll need it for configuration:
 ### Bearer Token vs Basic Auth
 
 **Bearer Token (Recommended):**
+
 ```bash
 --env JENKINS_BEARER_TOKEN=your_token
 ```
 
 **Basic Auth:**
+
 ```bash
 --env JENKINS_USER=your_username
 --env JENKINS_API_TOKEN=your_token
@@ -839,10 +1029,12 @@ npm run clean && npm run build
 ### Check Logs
 
 **Claude Desktop logs:**
+
 - macOS: `~/Library/Logs/Claude/mcp*.log`
 - Windows: `%APPDATA%\Claude\logs\mcp*.log`
 
 **Claude Code CLI logs:**
+
 ```bash
 claude mcp get jenkins
 ```

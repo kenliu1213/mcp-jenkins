@@ -35,7 +35,7 @@
     "automation",
     "ci-cd"
   ],
-  "author": "",
+  "author": "kud",
   "license": "MIT",
   "engines": {
     "node": ">=20.0.0"
