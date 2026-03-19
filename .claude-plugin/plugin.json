@@ -17,5 +17,22 @@
       "JENKINS_TOKEN": "${JENKINS_TOKEN}"
     }
   },
+  "requiredEnv": [
+    {
+      "name": "JENKINS_URL",
+      "description": "Your Jenkins instance URL (e.g. https://jenkins.example.com)",
+      "required": true
+    },
+    {
+      "name": "JENKINS_USER",
+      "description": "Your Jenkins username",
+      "required": true
+    },
+    {
+      "name": "JENKINS_TOKEN",
+      "description": "Your Jenkins API token — generate one at <jenkins-url>/user/<username>/configure",
+      "required": true
+    }
+  ],
   "skills": ["ci-diagnose", "build-watch"]
 }
