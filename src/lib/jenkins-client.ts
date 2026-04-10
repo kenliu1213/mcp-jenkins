@@ -3,6 +3,7 @@ import {
   httpGetText,
   httpPost,
   Errors,
+  McpError,
   logger,
   loadJenkinsEnv,
 } from "../common/index.js"
@@ -602,6 +603,193 @@ export class JenkinsClient {
       }
       throw e
     }
+  }
+
+  async createJob(
+    jobName: string,
+    configXml: string,
+  ): Promise<{ jobName: string; created: boolean }> {
+    const crumb = await this.ensureCrumb()
+    const headers: Record<string, string> = this.headers({
+      "Content-Type": "application/xml",
+    })
+    if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    const res = await httpPost(
+      `${this.baseUrl}/createItem?name=${encodeURIComponent(jobName)}`,
+      { headers, body: configXml },
+    )
+    if (res.status >= 400)
+      throw Errors.unexpected(`Create job failed: HTTP ${res.status}`)
+    return { jobName, created: true }
+  }
+
+  async updateJobConfig(
+    jobName: string,
+    configXml: string,
+  ): Promise<{ jobName: string; updated: boolean }> {
+    const crumb = await this.ensureCrumb()
+    const headers: Record<string, string> = this.headers({
+      "Content-Type": "application/xml",
+    })
+    if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    try {
+      await httpPost(
+        `${this.baseUrl}/job/${encodeURIComponent(jobName)}/config.xml`,
+        { headers, body: configXml },
+      )
+      return { jobName, updated: true }
+    } catch (e: any) {
+      if (e.message?.includes("HTTP 404")) throw Errors.jobNotFound(jobName)
+      throw e
+    }
+  }
+
+  async renameJob(
+    jobName: string,
+    newName: string,
+  ): Promise<{ oldName: string; newName: string; renamed: boolean }> {
+    const crumb = await this.ensureCrumb()
+    const headers: Record<string, string> = this.headers()
+    if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    try {
+      await httpPost(
+        `${this.baseUrl}/job/${encodeURIComponent(jobName)}/rename?newName=${encodeURIComponent(newName)}`,
+        { headers },
+      )
+      return { oldName: jobName, newName, renamed: true }
+    } catch (e: any) {
+      if (e.message?.includes("HTTP 404")) throw Errors.jobNotFound(jobName)
+      throw e
+    }
+  }
+
+  async copyJob(
+    fromName: string,
+    newName: string,
+  ): Promise<{ fromName: string; newName: string; copied: boolean }> {
+    const crumb = await this.ensureCrumb()
+    const headers: Record<string, string> = this.headers()
+    if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    try {
+      const res = await httpPost(
+        `${this.baseUrl}/createItem?name=${encodeURIComponent(newName)}&from=${encodeURIComponent(fromName)}&mode=copy`,
+        { headers },
+      )
+      if (res.status >= 400)
+        throw Errors.unexpected(`Copy job failed: HTTP ${res.status}`)
+      return { fromName, newName, copied: true }
+    } catch (e: any) {
+      if (e.message?.includes("HTTP 404")) throw Errors.jobNotFound(fromName)
+      throw e
+    }
+  }
+
+  async getNode(nodeName: string): Promise<any> {
+    try {
+      const data = await httpGetJson<any>(
+        `${this.baseUrl}/computer/${encodeURIComponent(nodeName)}/api/json?depth=1`,
+        { headers: this.headers() },
+      )
+      return {
+        name: data.displayName || nodeName,
+        offline: data.offline || false,
+        temporarilyOffline: data.temporarilyOffline || false,
+        offlineCauseReason: data.offlineCauseReason || "",
+        idle: data.idle || false,
+        numExecutors: data.numExecutors || 0,
+        assignedLabels: (data.assignedLabels || []).map((l: any) => l.name),
+        monitorData: data.monitorData || {},
+      }
+    } catch (e: any) {
+      if (e.message?.includes("HTTP 404"))
+        throw new McpError("NODE_NOT_FOUND", `Node not found: ${nodeName}`, 404)
+      throw e
+    }
+  }
+
+  async toggleNodeOffline(
+    nodeName: string,
+    offlineMessage = "",
+  ): Promise<{ nodeName: string; toggledOffline: boolean }> {
+    const crumb = await this.ensureCrumb()
+    const headers: Record<string, string> = this.headers()
+    if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    try {
+      await httpPost(
+        `${this.baseUrl}/computer/${encodeURIComponent(nodeName)}/toggleOffline?offlineMessage=${encodeURIComponent(offlineMessage)}`,
+        { headers },
+      )
+      return { nodeName, toggledOffline: true }
+    } catch (e: any) {
+      if (e.message?.includes("HTTP 404"))
+        throw new McpError("NODE_NOT_FOUND", `Node not found: ${nodeName}`, 404)
+      throw e
+    }
+  }
+
+  async listViews(): Promise<
+    { name: string; url: string; jobs: { name: string; url: string }[] }[]
+  > {
+    const data = await httpGetJson<any>(
+      `${this.baseUrl}/api/json?tree=views[name,url,jobs[name,url]]`,
+      { headers: this.headers() },
+    )
+    if (!Array.isArray(data.views)) return []
+    return data.views.map((v: any) => ({
+      name: v.name || "",
+      url: v.url || "",
+      jobs: (v.jobs || []).map((j: any) => ({ name: j.name, url: j.url })),
+    }))
+  }
+
+  async getView(viewName: string): Promise<any> {
+    try {
+      const data = await httpGetJson<any>(
+        `${this.baseUrl}/view/${encodeURIComponent(viewName)}/api/json`,
+        { headers: this.headers() },
+      )
+      return {
+        name: data.name || viewName,
+        url: data.url || "",
+        description: data.description || "",
+        jobs: (data.jobs || []).map((j: any) => ({
+          name: j.name,
+          url: j.url,
+          color: j.color,
+        })),
+      }
+    } catch (e: any) {
+      if (e.message?.includes("HTTP 404"))
+        throw new McpError("VIEW_NOT_FOUND", `View not found: ${viewName}`, 404)
+      throw e
+    }
+  }
+
+  async quietDown(reason = ""): Promise<{ quietingDown: boolean }> {
+    const crumb = await this.ensureCrumb()
+    const headers: Record<string, string> = this.headers()
+    if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    const url = reason
+      ? `${this.baseUrl}/quietDown?reason=${encodeURIComponent(reason)}`
+      : `${this.baseUrl}/quietDown`
+    await httpPost(url, { headers })
+    return { quietingDown: true }
+  }
+
+  async cancelQuietDown(): Promise<{ quietingDown: boolean }> {
+    const crumb = await this.ensureCrumb()
+    const headers: Record<string, string> = this.headers()
+    if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    await httpPost(`${this.baseUrl}/cancelQuietDown`, { headers })
+    return { quietingDown: false }
+  }
+
+  async safeRestart(): Promise<{ restarting: boolean }> {
+    const crumb = await this.ensureCrumb()
+    const headers: Record<string, string> = this.headers()
+    if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    await httpPost(`${this.baseUrl}/safeRestart`, { headers })
+    return { restarting: true }
   }
 
   // Replay build (for pipeline jobs)

@@ -16,7 +16,7 @@
 [![MCP](https://img.shields.io/badge/MCP-1.0-purple?logo=anthropic)](https://modelcontextprotocol.io/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**A Jenkins MCP server with 25+ tools for managing jobs, builds, and CI/CD workflows**
+**A Jenkins MCP server with 37 tools for managing jobs, builds, nodes, views, and CI/CD workflows**
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Installation](#-installation-guides) • [Tools](#-available-tools) • [Development](#-development)
 
@@ -29,7 +29,7 @@
 - **🔐 Flexible Authentication** - Bearer tokens, Basic auth, OAuth support
 - **⚙️ Flexible Configuration** - CLI args, MCP*JENKINS*\_, or JENKINS\_\_ env vars (priority-based)
 - **🔀 Multi-Instance Support** - Connect to multiple Jenkins servers in one MCP entry, select per tool call
-- **🛠️ 25+ Tools** - Complete Jenkins API coverage
+- **🛠️ 37 Tools** - Comprehensive Jenkins API coverage
 - **⚡ Modern Stack** - TypeScript 5.3+, ES2023, Native Fetch API
 - **📦 MCP Protocol** - Native integration with Claude Desktop, Claude Code CLI
 - **🔄 Real-time Monitoring** - Build status, queue management, pipeline stages
@@ -668,17 +668,21 @@ Apply and restart the IDE.
 
 ## 🛠️ Available Tools
 
-### 📋 Job Operations (5 tools)
+### 📋 Job Operations (11 tools)
 
-| Tool                     | Description                 |
-| ------------------------ | --------------------------- |
-| `jenkins_list_jobs`      | List all Jenkins jobs       |
-| `jenkins_search_jobs`    | Search jobs by name         |
-| `jenkins_get_job_status` | Get last build status       |
-| `jenkins_enable_job`     | Enable a disabled job       |
-| `jenkins_disable_job`    | Disable a job               |
-| `jenkins_delete_job`     | Delete a job (⚠️ permanent) |
-| `jenkins_get_job_config` | Get job XML configuration   |
+| Tool                        | Description                         |
+| --------------------------- | ----------------------------------- |
+| `jenkins_list_jobs`         | List all Jenkins jobs               |
+| `jenkins_search_jobs`       | Search jobs by name                 |
+| `jenkins_get_job_status`    | Get last build status               |
+| `jenkins_enable_job`        | Enable a disabled job               |
+| `jenkins_disable_job`       | Disable a job                       |
+| `jenkins_delete_job`        | Delete a job (⚠️ permanent)         |
+| `jenkins_get_job_config`    | Get job XML configuration           |
+| `jenkins_create_job`        | Create a new job from XML config    |
+| `jenkins_update_job_config` | Update an existing job's XML config |
+| `jenkins_rename_job`        | Rename a job                        |
+| `jenkins_copy_job`          | Copy/duplicate a job                |
 
 ### 🔨 Build Operations (9 tools)
 
@@ -709,22 +713,34 @@ Apply and restart the IDE.
 | `jenkins_get_queue`    | View pending builds |
 | `jenkins_cancel_queue` | Cancel queued build |
 
-### 🖥️ System Information (5 tools)
+### 🖥️ System & Nodes (8 tools)
 
-| Tool                      | Description             |
-| ------------------------- | ----------------------- |
-| `jenkins_list_nodes`      | List all agents/nodes   |
-| `jenkins_get_system_info` | Get Jenkins system info |
-| `jenkins_get_version`     | Get Jenkins version     |
-| `jenkins_get_plugins`     | List installed plugins  |
+| Tool                          | Description                             |
+| ----------------------------- | --------------------------------------- |
+| `jenkins_list_nodes`          | List all agents/nodes                   |
+| `jenkins_get_node`            | Get detailed info on a specific node    |
+| `jenkins_toggle_node_offline` | Toggle a node online/offline            |
+| `jenkins_get_system_info`     | Get Jenkins system info                 |
+| `jenkins_get_version`         | Get Jenkins version                     |
+| `jenkins_get_plugins`         | List installed plugins                  |
+| `jenkins_quiet_down`          | Enable quiet mode (⚠️ requires confirm) |
+| `jenkins_cancel_quiet_down`   | Cancel quiet mode                       |
 
-### 🔀 Instances (1 tool)
+### 🗂️ Views (2 tools)
+
+| Tool                 | Description                     |
+| -------------------- | ------------------------------- |
+| `jenkins_list_views` | List all views with their jobs  |
+| `jenkins_get_view`   | Get details for a specific view |
+
+### 🔀 Instances & Admin (2 tools)
 
 | Tool                     | Description                                   |
 | ------------------------ | --------------------------------------------- |
 | `jenkins_list_instances` | List all configured instances with their URLs |
+| `jenkins_safe_restart`   | Safely restart Jenkins (⚠️ requires confirm)  |
 
-**Total: 26 Tools** covering ~90% of Jenkins API operations!
+**Total: 37 Tools** covering ~95% of Jenkins API operations!
 
 ---
 

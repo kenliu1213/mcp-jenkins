@@ -40,6 +40,17 @@ import { getPlugins } from "./tools/get-plugins.js"
 import { getBuildChanges } from "./tools/get-build-changes.js"
 import { getPipelineStages } from "./tools/get-pipeline-stages.js"
 import { replayBuild } from "./tools/replay-build.js"
+import { createJob } from "./tools/create-job.js"
+import { updateJobConfig } from "./tools/update-job-config.js"
+import { renameJob } from "./tools/rename-job.js"
+import { copyJob } from "./tools/copy-job.js"
+import { getNode } from "./tools/get-node.js"
+import { toggleNodeOffline } from "./tools/toggle-node-offline.js"
+import { listViews } from "./tools/list-views.js"
+import { getView } from "./tools/get-view.js"
+import { quietDown } from "./tools/quiet-down.js"
+import { cancelQuietDown } from "./tools/cancel-quiet-down.js"
+import { safeRestart } from "./tools/safe-restart.js"
 
 const instanceProperty = {
   instance: {
@@ -445,6 +456,158 @@ const rawTools: Tool[] = [
       required: [],
     },
   },
+  {
+    name: "jenkins_create_job",
+    description: "Create a new Jenkins job from an XML configuration",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobName: { type: "string", description: "Name for the new job" },
+        configXml: {
+          type: "string",
+          description: "Jenkins job XML configuration",
+        },
+      },
+      required: ["jobName", "configXml"],
+    },
+  },
+  {
+    name: "jenkins_update_job_config",
+    description: "Update an existing job's XML configuration",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobName: { type: "string", description: "Name of the Jenkins job" },
+        configXml: {
+          type: "string",
+          description: "New Jenkins job XML configuration",
+        },
+      },
+      required: ["jobName", "configXml"],
+    },
+  },
+  {
+    name: "jenkins_rename_job",
+    description: "Rename a Jenkins job",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobName: { type: "string", description: "Current job name" },
+        newName: { type: "string", description: "New job name" },
+      },
+      required: ["jobName", "newName"],
+    },
+  },
+  {
+    name: "jenkins_copy_job",
+    description: "Copy/duplicate a Jenkins job under a new name",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fromName: {
+          type: "string",
+          description: "Source job name to copy from",
+        },
+        newName: { type: "string", description: "Name for the new job copy" },
+      },
+      required: ["fromName", "newName"],
+    },
+  },
+  {
+    name: "jenkins_get_node",
+    description: "Get detailed information about a specific Jenkins node/agent",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeName: {
+          type: "string",
+          description:
+            "Node/agent name (use 'master' or 'Built-In Node' for the controller)",
+        },
+      },
+      required: ["nodeName"],
+    },
+  },
+  {
+    name: "jenkins_toggle_node_offline",
+    description: "Toggle a Jenkins node/agent between online and offline",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodeName: { type: "string", description: "Node/agent name" },
+        offlineMessage: {
+          type: "string",
+          description: "Optional reason for taking the node offline",
+        },
+      },
+      required: ["nodeName"],
+    },
+  },
+  {
+    name: "jenkins_list_views",
+    description: "List all Jenkins views with their jobs",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "jenkins_get_view",
+    description: "Get details and job list for a specific Jenkins view",
+    inputSchema: {
+      type: "object",
+      properties: {
+        viewName: { type: "string", description: "Name of the Jenkins view" },
+      },
+      required: ["viewName"],
+    },
+  },
+  {
+    name: "jenkins_quiet_down",
+    description:
+      "Put Jenkins into quiet mode — no new builds will start until cancelled (requires confirm: true)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        reason: {
+          type: "string",
+          description: "Optional reason for quiet mode",
+        },
+        confirm: {
+          type: "boolean",
+          description: "Must be true to proceed",
+          default: false,
+        },
+      },
+      required: ["confirm"],
+    },
+  },
+  {
+    name: "jenkins_cancel_quiet_down",
+    description: "Cancel Jenkins quiet mode and resume accepting new builds",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "jenkins_safe_restart",
+    description:
+      "Safely restart Jenkins — waits for running builds to finish before restarting (requires confirm: true)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        confirm: {
+          type: "boolean",
+          description: "Must be true to proceed",
+          default: false,
+        },
+      },
+      required: ["confirm"],
+    },
+  },
 ]
 
 const tools = rawTools.map(injectInstance)
@@ -477,6 +640,17 @@ const toolHandlers: Record<string, ToolHandler> = {
   jenkins_get_system_info: getSystemInfo,
   jenkins_get_version: getVersion,
   jenkins_get_plugins: getPlugins,
+  jenkins_create_job: createJob,
+  jenkins_update_job_config: updateJobConfig,
+  jenkins_rename_job: renameJob,
+  jenkins_copy_job: copyJob,
+  jenkins_get_node: getNode,
+  jenkins_toggle_node_offline: toggleNodeOffline,
+  jenkins_list_views: listViews,
+  jenkins_get_view: getView,
+  jenkins_quiet_down: quietDown,
+  jenkins_cancel_quiet_down: cancelQuietDown,
+  jenkins_safe_restart: safeRestart,
 }
 
 // Parse CLI arguments
@@ -562,7 +736,7 @@ Examples:
 const server = new Server(
   {
     name: "jenkins-mcp-server",
-    version: "0.1.0",
+    version: "0.9.1",
   },
   {
     capabilities: {
