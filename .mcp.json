@@ -1,11 +1,6 @@
 {
   "mcp-jenkins": {
-    "command": "node",
-    "args": ["./dist/index.js"],
-    "env": {
-      "JENKINS_URL": "${MCP_JENKINS_URL}",
-      "JENKINS_USER": "${MCP_JENKINS_USER}",
-      "JENKINS_TOKEN": "${MCP_JENKINS_TOKEN}"
-    }
+    "command": "npx",
+    "args": ["tsx", "src/index.ts"]
   }
 }
