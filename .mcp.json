@@ -1,6 +1,8 @@
 {
-  "mcp-jenkins": {
-    "command": "npx",
-    "args": ["tsx", "src/index.ts"]
+  "mcpServers": {
+    "mcp-jenkins": {
+      "command": "npx",
+      "args": ["tsx", "src/index.ts"]
+    }
   }
 }
