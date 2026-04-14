@@ -71,8 +71,9 @@
 
         <div class="hero-command">
           <code
-            >npx --yes @kud/mcp-jenkins@latest --url &lt;url&gt; --user
-            &lt;user&gt; --api-token &lt;token&gt;</code
+            >MCP_JENKINS_URL=&lt;url&gt; MCP_JENKINS_USER=&lt;user&gt;
+            MCP_JENKINS_API_TOKEN=&lt;token&gt; npx --yes
+            @kud/mcp-jenkins@latest</code
           >
           <button class="copy-btn" onclick="copyHeroCmd(this)">Copy</button>
         </div>
