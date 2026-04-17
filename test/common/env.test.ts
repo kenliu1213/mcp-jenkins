@@ -6,7 +6,7 @@ import {
 
 describe("loadToolFilter", () => {
   afterEach(() => {
-    delete process.env["MCP_JENKINS_TOOLS"]
+    delete process.env["MCP_JENKINS_ALLOW_TOOLS"]
     delete process.env["MCP_JENKINS_BLOCK_TOOLS"]
   })
 
@@ -16,8 +16,8 @@ describe("loadToolFilter", () => {
     expect(filter.blocklist).toEqual([])
   })
 
-  it("parses MCP_JENKINS_TOOLS into allowlist", () => {
-    process.env["MCP_JENKINS_TOOLS"] =
+  it("parses MCP_JENKINS_ALLOW_TOOLS into allowlist", () => {
+    process.env["MCP_JENKINS_ALLOW_TOOLS"] =
       "jenkins_list_jobs,jenkins_get_job_status"
     const filter = loadToolFilter()
     expect(filter.allowlist).toEqual([
@@ -39,7 +39,7 @@ describe("loadToolFilter", () => {
   })
 
   it("returns both when both env vars are set — caller decides precedence", () => {
-    process.env["MCP_JENKINS_TOOLS"] = "jenkins_list_jobs"
+    process.env["MCP_JENKINS_ALLOW_TOOLS"] = "jenkins_list_jobs"
     process.env["MCP_JENKINS_BLOCK_TOOLS"] = "jenkins_delete_job"
     const filter = loadToolFilter()
     expect(filter.allowlist).toEqual(["jenkins_list_jobs"])
@@ -47,7 +47,7 @@ describe("loadToolFilter", () => {
   })
 
   it("trims whitespace around tool names", () => {
-    process.env["MCP_JENKINS_TOOLS"] =
+    process.env["MCP_JENKINS_ALLOW_TOOLS"] =
       " jenkins_list_jobs , jenkins_get_job_status "
     const filter = loadToolFilter()
     expect(filter.allowlist).toEqual([
@@ -57,7 +57,7 @@ describe("loadToolFilter", () => {
   })
 
   it("supports pipe as delimiter", () => {
-    process.env["MCP_JENKINS_TOOLS"] =
+    process.env["MCP_JENKINS_ALLOW_TOOLS"] =
       "jenkins_list_jobs|jenkins_get_job_status"
     const filter = loadToolFilter()
     expect(filter.allowlist).toEqual([
@@ -67,7 +67,7 @@ describe("loadToolFilter", () => {
   })
 
   it("handles a single tool name", () => {
-    process.env["MCP_JENKINS_TOOLS"] = "jenkins_list_jobs"
+    process.env["MCP_JENKINS_ALLOW_TOOLS"] = "jenkins_list_jobs"
     const filter = loadToolFilter()
     expect(filter.allowlist).toEqual(["jenkins_list_jobs"])
   })

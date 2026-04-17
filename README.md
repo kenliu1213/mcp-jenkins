@@ -28,7 +28,7 @@
 
 - **🔐 Flexible Authentication** - Bearer tokens, Basic auth, OAuth support
 - **⚙️ Flexible Configuration** - CLI args or `MCP_JENKINS_*` env vars (priority-based)
-- **🔒 Tool Filtering** - Allowlist or blocklist tools via `MCP_JENKINS_TOOLS` / `MCP_JENKINS_BLOCK_TOOLS`
+- **🔒 Tool Filtering** - Allowlist or blocklist tools via `MCP_JENKINS_ALLOW_TOOLS` / `MCP_JENKINS_BLOCK_TOOLS`
 - **🔀 Multi-Instance Support** - Connect to multiple Jenkins servers in one MCP entry, select per tool call
 - **🛠️ 37 Tools** - Comprehensive Jenkins API coverage
 - **⚡ Modern Stack** - TypeScript 5.3+, ES2023, Native Fetch API
@@ -937,7 +937,7 @@ Control which tools are exposed to the AI using an allowlist or blocklist.
 **Allowlist** — expose only specific tools:
 
 ```bash
-export MCP_JENKINS_TOOLS="jenkins_list_jobs,jenkins_get_job_status,jenkins_get_build_status"
+export MCP_JENKINS_ALLOW_TOOLS="jenkins_list_jobs,jenkins_get_job_status,jenkins_get_build_status"
 ```
 
 **Blocklist** — hide specific tools (all others remain available):
@@ -946,7 +946,7 @@ export MCP_JENKINS_TOOLS="jenkins_list_jobs,jenkins_get_job_status,jenkins_get_b
 export MCP_JENKINS_BLOCK_TOOLS="jenkins_delete_job,jenkins_trigger_build,jenkins_safe_restart"
 ```
 
-If both are set, `MCP_JENKINS_TOOLS` takes precedence.
+If both are set, `MCP_JENKINS_ALLOW_TOOLS` takes precedence.
 
 **Read-only monitoring preset** — block all write/destructive tools:
 

@@ -747,9 +747,9 @@ Authentication:
   Either provide --bearer-token OR both --user and --api-token
 
 Tool Filtering (via environment variables):
-  MCP_JENKINS_TOOLS=<tool1>,<tool2>        Allowlist — expose only these tools
+  MCP_JENKINS_ALLOW_TOOLS=<tool1>,<tool2>  Allowlist — expose only these tools
   MCP_JENKINS_BLOCK_TOOLS=<tool1>,<tool2>  Blocklist — hide these tools
-  If both are set, MCP_JENKINS_TOOLS takes precedence.
+  If both are set, MCP_JENKINS_ALLOW_TOOLS takes precedence.
 
 Examples:
   # Bearer token auth (via CLI)
@@ -771,7 +771,7 @@ Examples:
   mcp-jenkins --url https://jenkins.example.com --bearer-token abc123
 
   # Allowlist — expose only job listing and status tools
-  MCP_JENKINS_TOOLS=jenkins_list_jobs,jenkins_get_job_status,jenkins_get_build_status \\
+  MCP_JENKINS_ALLOW_TOOLS=jenkins_list_jobs,jenkins_get_job_status,jenkins_get_build_status \\
   mcp-jenkins --url https://jenkins.example.com --bearer-token abc123
 `)
         process.exit(0)

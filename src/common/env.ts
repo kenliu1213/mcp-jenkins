@@ -151,7 +151,7 @@ export interface ToolFilter {
  * Load tool allow/block lists from environment variables.
  *
  * Allowlist (only these tools are exposed):
- *   MCP_JENKINS_TOOLS=jenkins_list_jobs,jenkins_get_job_status
+ *   MCP_JENKINS_ALLOW_TOOLS=jenkins_list_jobs,jenkins_get_job_status
  *
  * Blocklist (all tools except these):
  *   MCP_JENKINS_BLOCK_TOOLS=jenkins_delete_job,jenkins_trigger_build
@@ -159,7 +159,7 @@ export interface ToolFilter {
  * If both are set, allowlist takes precedence and blocklist is ignored.
  */
 export const loadToolFilter = (): ToolFilter => {
-  const rawAllow = process.env["MCP_JENKINS_TOOLS"]
+  const rawAllow = process.env["MCP_JENKINS_ALLOW_TOOLS"]
   const rawBlock = process.env["MCP_JENKINS_BLOCK_TOOLS"]
 
   return {
