@@ -6,12 +6,12 @@
     <title>mcp-jenkins — Jenkins MCP Server</title>
     <meta
       name="description"
-      content="Jenkins MCP server with 37 tools for managing jobs, builds, nodes, views, and CI/CD workflows. Bearer token auth, multi-instance support, tool filtering."
+      content="Jenkins MCP server with 38 tools for managing jobs, builds, nodes, views, and CI/CD workflows. Bearer token auth, multi-instance support, tool filtering."
     />
     <meta property="og:title" content="mcp-jenkins — Jenkins MCP Server" />
     <meta
       property="og:description"
-      content="37 tools for Jenkins CI/CD. Bearer token auth, multi-instance, tool filtering."
+      content="38 tools for Jenkins CI/CD. Bearer token auth, multi-instance, tool filtering."
     />
     <meta property="og:url" content="https://kud.github.io/mcp-jenkins" />
     <link rel="stylesheet" href="style.css" />
@@ -44,7 +44,7 @@
       <div class="hero-content">
         <div class="hero-badge">
           <span class="hero-badge-dot"></span>
-          v1.1.1 &mdash; 37 tools
+          v2.0.2 &mdash; 38 tools
         </div>
         <h1>Jenkins MCP Server</h1>
         <p>
@@ -76,7 +76,7 @@
 
         <div class="stats">
           <div class="stat">
-            <span class="stat-value">37</span>
+            <span class="stat-value">38</span>
             <span class="stat-label">Tools</span>
           </div>
           <div class="stat-divider"></div>
@@ -146,7 +146,7 @@
           </div>
           <div class="feature-card reveal">
             <div class="feature-icon">&#128296;</div>
-            <div class="feature-title">37 Tools</div>
+            <div class="feature-title">38 Tools</div>
             <div class="feature-desc">
               Jobs, builds, nodes, views, artifacts, plugins, and system info.
               Covers ~95% of the Jenkins REST API surface.
@@ -239,7 +239,7 @@
     <section id="tools">
       <div class="section-inner">
         <span class="section-eyebrow reveal">Tools</span>
-        <h2 class="reveal">37 tools, 7 categories</h2>
+        <h2 class="reveal">38 tools, 7 categories</h2>
         <p class="section-sub reveal">
           From triggering builds to inspecting nodes, every major Jenkins
           operation is covered.
@@ -282,6 +282,10 @@
             <div class="cli-row">
               <span class="cli-cmd">jenkins_get_job_status</span
               ><span class="cli-desc">Get last build status for a job</span>
+            </div>
+            <div class="cli-row">
+              <span class="cli-cmd">jenkins_get_job_parameters</span
+              ><span class="cli-desc">Get parameter definitions for a job</span>
             </div>
             <div class="cli-row">
               <span class="cli-cmd">jenkins_enable_job</span
