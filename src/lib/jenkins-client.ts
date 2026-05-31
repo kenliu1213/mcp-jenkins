@@ -341,29 +341,167 @@ export class JenkinsClient {
         `${this.baseUrl}/job/${jobPath(jobName)}/${buildNumber}/testReport/api/json`,
         { headers: this.headers() },
       )
+      const totalTests = data.totalCount || 0
+      // Fallback: if testReport shows 0 tests, try parsing console log for Robot results
+      if (totalTests === 0) {
+        const parsed = await this.parseRobotFromConsoleLog(jobName, buildNumber)
+        return {
+          jobName,
+          buildNumber,
+          totalTests: parsed.totalTests,
+          passedTests: parsed.passedTests,
+          failedTests: parsed.failedTests,
+          skippedTests: parsed.skippedTests,
+          duration: data.duration || 0,
+          suites: data.suites || [],
+          source: "console_log",
+          consoleLogHint: parsed.consoleLogHint,
+        }
+      }
       return {
         jobName,
         buildNumber,
-        totalTests: data.totalCount || 0,
+        totalTests,
         passedTests: data.passCount || 0,
         failedTests: data.failCount || 0,
         skippedTests: data.skipCount || 0,
         duration: data.duration || 0,
         suites: data.suites || [],
+        source: "testReport",
       }
     } catch (e: any) {
       if (e.message?.includes("HTTP 404")) {
+        // No test report at all — try console log as last resort
+        const parsed = await this.parseRobotFromConsoleLog(jobName, buildNumber)
         return {
           jobName,
           buildNumber,
-          totalTests: 0,
-          passedTests: 0,
-          failedTests: 0,
-          skippedTests: 0,
-          message: "No test results found",
+          totalTests: parsed.totalTests,
+          passedTests: parsed.passedTests,
+          failedTests: parsed.failedTests,
+          skippedTests: parsed.skippedTests,
+          duration: 0,
+          suites: [],
+          source: "console_log",
+          consoleLogHint: parsed.consoleLogHint,
         }
       }
       throw e
+    }
+  }
+
+  /**
+   * Parse Robot Framework test results from console log when testReport API
+   * fails to return meaningful data (e.g. output.xml files with non-standard
+   * names or encoding issues).
+   */
+  private async parseRobotFromConsoleLog(
+    jobName: string,
+    buildNumber: number,
+  ): Promise<{
+    totalTests: number
+    passedTests: number
+    failedTests: number
+    skippedTests: number
+    consoleLogHint: string
+  }> {
+    try {
+      const { fullLog } = await this.getConsoleLog(jobName, buildNumber)
+      const lines = fullLog.split("\n")
+
+      // Robot Framework summary patterns:
+      //   "X test(s), Y passed, Z failed, W skipped"
+      //   "X tests, Y passed, Z failed"  (no skipped)
+      // Also handle multi-suite output like:
+      //   "UNII3 ALL EU | PASS"  (suite name + status)
+      //   "1 test, 1 passed, 0 failed"
+      //   "Finished: SUCCESS"
+      let totalTests = 0
+      let passedTests = 0
+      let failedTests = 0
+      let skippedTests = 0
+      let overallResult = "UNKNOWN"
+      let hintLines: string[] = []
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+
+        // Robot summary: "N test(s), Y passed, Z failed, W skipped"
+        const summaryMatch = trimmed.match(
+          /(\d+)\s*test\(s\)[,\s]+(\d+)\s*passed[,\s]+(\d+)\s*failed/i,
+        )
+        if (summaryMatch) {
+          totalTests = parseInt(summaryMatch[1], 10)
+          passedTests = parseInt(summaryMatch[2], 10)
+          failedTests = parseInt(summaryMatch[3], 10)
+          // Try to also get skipped count from same line
+          const skipMatch = trimmed.match(/(\d+)\s*skipped/i)
+          if (skipMatch) skippedTests = parseInt(skipMatch[1], 10)
+        }
+
+        // Alternative: "N test(s), Y passed, Z failed" (no skipped)
+        if (totalTests === 0) {
+          const altMatch = trimmed.match(
+            /(\d+)\s*test\(s\)[,\s]+(\d+)\s*passed[,\s]+(\d+)\s*failed/i,
+          )
+          if (altMatch) {
+            totalTests = parseInt(altMatch[1], 10)
+            passedTests = parseInt(altMatch[2], 10)
+            failedTests = parseInt(altMatch[3], 10)
+          }
+        }
+
+        // Robot suite result: "SuiteName | PASS|FAIL"
+        const suiteMatch = trimmed.match(/^(.+?)\s*\|\s*(PASS|FAIL(?:URE)?)\s*$/i)
+        if (suiteMatch) {
+          hintLines.push(trimmed)
+        }
+
+        // Overall finish: "Finished: SUCCESS" / "Finished: FAILURE"
+        const finishMatch = trimmed.match(/^Finished:\s*(SUCCESS|FAILURE)$/i)
+        if (finishMatch) {
+          overallResult = finishMatch[1].toUpperCase()
+        }
+      }
+
+      // If we found no summary but there's a success finish and suite hints,
+      // treat it as a single-test pass
+      if (
+        totalTests === 0 &&
+        overallResult === "SUCCESS" &&
+        hintLines.length > 0
+      ) {
+        // Extract actual counts from suite-level output if available
+        const passMatch = fullLog.match(/(\d+)\s*test.*?(\d+)\s*passed.*?(\d+)\s*failed/i)
+        if (passMatch) {
+          totalTests = parseInt(passMatch[1], 10)
+          passedTests = parseInt(passMatch[2], 10)
+          failedTests = parseInt(passMatch[3], 10)
+        } else {
+          // Fallback: assume 1 test passed if overall SUCCESS
+          totalTests = 1
+          passedTests = 1
+          failedTests = 0
+        }
+      }
+
+      const hint = hintLines.slice(0, 5).join(" | ")
+      return {
+        totalTests,
+        passedTests,
+        failedTests,
+        skippedTests,
+        consoleLogHint: hint || overallResult,
+      }
+    } catch {
+      // Console log also failed — return zeros
+      return {
+        totalTests: 0,
+        passedTests: 0,
+        failedTests: 0,
+        skippedTests: 0,
+        consoleLogHint: "console_log_unavailable",
+      }
     }
   }
 
