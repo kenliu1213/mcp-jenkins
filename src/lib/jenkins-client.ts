@@ -428,7 +428,7 @@ export class JenkinsClient {
 
         // Robot summary: "N test(s), Y passed, Z failed, W skipped"
         const summaryMatch = trimmed.match(
-          /(\d+)\s*test\(s\)[,\s]+(\d+)\s*passed[,\s]+(\d+)\s*failed/i,
+          /(\d+)\s*tests?[,\s]+(\d+)\s*passed[,\s]+(\d+)\s*failed/i,
         )
         if (summaryMatch) {
           totalTests = parseInt(summaryMatch[1], 10)
@@ -442,7 +442,7 @@ export class JenkinsClient {
         // Alternative: "N test(s), Y passed, Z failed" (no skipped)
         if (totalTests === 0) {
           const altMatch = trimmed.match(
-            /(\d+)\s*test\(s\)[,\s]+(\d+)\s*passed[,\s]+(\d+)\s*failed/i,
+            /(\d+)\s*tests?[,\s]+(\d+)\s*passed[,\s]+(\d+)\s*failed/i,
           )
           if (altMatch) {
             totalTests = parseInt(altMatch[1], 10)
