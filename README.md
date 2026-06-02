@@ -30,7 +30,7 @@
 - **⚙️ Flexible Configuration** - CLI args or `MCP_JENKINS_*` env vars (priority-based)
 - **🔒 Tool Filtering** - Allowlist or blocklist tools via `MCP_JENKINS_ALLOW_TOOLS` / `MCP_JENKINS_BLOCK_TOOLS`
 - **🔀 Multi-Instance Support** - Connect to multiple Jenkins servers in one MCP entry, select per tool call
-- **🛠️ 37 Tools** - Comprehensive Jenkins API coverage
+- **🛠️ 38 Tools** - Comprehensive Jenkins API coverage
 - **⚡ Modern Stack** - TypeScript 5.3+, ES2023, Native Fetch API
 - **📦 MCP Protocol** - Native integration with Claude Desktop, Claude Code CLI
 - **🔄 Real-time Monitoring** - Build status, queue management, pipeline stages
@@ -683,6 +683,7 @@ Apply and restart the IDE.
 | `jenkins_update_job_config` | Update an existing job's XML config |
 | `jenkins_rename_job`        | Rename a job                        |
 | `jenkins_copy_job`          | Copy/duplicate a job                |
+| `jenkins_move_job`          | Move/rename a job to a new location (preserves history) |
 
 ### 🔨 Build Operations (9 tools)
 
@@ -740,7 +741,7 @@ Apply and restart the IDE.
 | `jenkins_list_instances` | List all configured instances with their URLs |
 | `jenkins_safe_restart`   | Safely restart Jenkins (⚠️ requires confirm)  |
 
-**Total: 37 Tools** covering ~95% of Jenkins API operations!
+**Total: 38 Tools** covering ~95% of Jenkins API operations!
 
 ---
 
