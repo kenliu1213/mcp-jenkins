@@ -818,18 +818,12 @@ export class JenkinsClient {
       "Content-Type": "application/xml",
     })
     if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
-    // Support "folder1/folder2/jobname" by splitting and using the folder URL.
-    const parts = jobName.split("/")
-    const name = parts.pop()!
-    const folderPath = parts.length > 0 ? `job/${parts.map(encodeURIComponent).join("/job/")}` : ""
-    const url = folderPath
-      ? `${this.baseUrl}/${folderPath}/createItem?name=${encodeURIComponent(name)}`
-      : `${this.baseUrl}/createItem?name=${encodeURIComponent(jobName)}`
-    const res = await httpPost(url, { headers, body: configXml })
+    const res = await httpPost(
+      `${this.baseUrl}/createItem?name=${encodeURIComponent(jobName)}`,
+      { headers, body: configXml },
+    )
     if (res.status >= 400)
-      throw Errors.unexpected(
-        `Create job failed: HTTP ${res.status} (${jobName} → ${url})`,
-      )
+      throw Errors.unexpected(`Create job failed: HTTP ${res.status}`)
     return { jobName, created: true }
   }
 
