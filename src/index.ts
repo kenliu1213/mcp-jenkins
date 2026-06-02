@@ -46,6 +46,7 @@ import { createJob } from "./tools/create-job.js"
 import { updateJobConfig } from "./tools/update-job-config.js"
 import { renameJob } from "./tools/rename-job.js"
 import { copyJob } from "./tools/copy-job.js"
+import { moveJob } from "./tools/move-job.js"
 import { getNode } from "./tools/get-node.js"
 import { toggleNodeOffline } from "./tools/toggle-node-offline.js"
 import { listViews } from "./tools/list-views.js"
@@ -537,6 +538,32 @@ const rawTools: Tool[] = [
     },
   },
   {
+    name: "jenkins_move_job",
+    description:
+      "Move a job to a new folder or rename it, preserving build history. Uses Jenkins POST /job/<src>/move?destination=...",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobName: {
+          type: "string",
+          description:
+            "Source job path (e.g. 'my-job' or 'folder/sub/my-job')",
+        },
+        destination: {
+          type: "string",
+          description:
+            "Target full path (e.g. 'new-folder/my-job' or 'new-folder/renamed-name')",
+        },
+        overwrite: {
+          type: "boolean",
+          description:
+            "Delete the existing job at destination first. Default: false",
+        },
+      },
+      required: ["jobName", "destination"],
+    },
+  },
+  {
     name: "jenkins_get_node",
     description: "Get detailed information about a specific Jenkins node/agent",
     inputSchema: {
@@ -688,6 +715,7 @@ const toolHandlers: Record<string, ToolHandler> = {
   jenkins_update_job_config: updateJobConfig,
   jenkins_rename_job: renameJob,
   jenkins_copy_job: copyJob,
+  jenkins_move_job: moveJob,
   jenkins_get_node: getNode,
   jenkins_toggle_node_offline: toggleNodeOffline,
   jenkins_list_views: listViews,
