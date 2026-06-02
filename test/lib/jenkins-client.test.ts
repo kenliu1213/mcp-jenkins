@@ -39,6 +39,8 @@ vi.mock("../../src/common/index.js", () => {
       jobNotFound: (job: string) => new Error(`Job not found: ${job}`),
       artifactNotFound: (path: string) =>
         new Error(`Artifact not found: ${path}`),
+      destinationConflict: (dest: string) =>
+        new Error(`Job already exists at destination: ${dest}`),
       unexpected: (msg: string) => new Error(msg),
     },
   }
@@ -565,6 +567,139 @@ describe("JenkinsClient", () => {
       expect(common.httpPost).toHaveBeenCalledWith(
         expect.stringContaining("from=source-job"),
         expect.anything(),
+      )
+    })
+  })
+
+  describe("moveJob", () => {
+    it("should move a job to an empty destination (no rename)", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "mv-crumb" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      // 1) destination GET → 404 (free)
+      vi.mocked(common.httpGetJson).mockRejectedValueOnce(new Error("HTTP 404"))
+      // 2) move POST → 200
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 200, headers: {} })
+
+      const result = await client.moveJob("old-folder/my-job", "new-folder/my-job")
+
+      expect(result).toEqual({
+        from: "old-folder/my-job",
+        to: "new-folder/my-job",
+        url: "https://jenkins.example.com/job/new-folder/job/my-job",
+        renamed: false,
+      })
+      expect(common.httpGetJson).toHaveBeenCalledWith(
+        "https://jenkins.example.com/job/new-folder/job/my-job/api/json",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "Jenkins-Crumb": "mv-crumb",
+          }),
+        }),
+      )
+      expect(common.httpPost).toHaveBeenCalledWith(
+        "https://jenkins.example.com/job/old-folder/job/my-job/move?destination=new-folder%2Fmy-job",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "Jenkins-Crumb": "mv-crumb",
+          }),
+        }),
+      )
+      // No DELETE happened
+      expect(common.httpPost).toHaveBeenCalledTimes(1)
+    })
+
+    it("should rename when basename changes", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "mv-crumb" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpGetJson).mockRejectedValueOnce(new Error("HTTP 404"))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 200, headers: {} })
+
+      const result = await client.moveJob("folder/old-name", "new-folder/new-name")
+
+      expect(result.renamed).toBe(true)
+      expect(result.to).toBe("new-folder/new-name")
+    })
+
+    it("should throw destinationConflict when destination is occupied and overwrite=false", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "mv-crumb" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      // destination GET → 200 (occupied)
+      vi.mocked(common.httpGetJson).mockResolvedValueOnce({ name: "existing" })
+
+      await expect(
+        client.moveJob("src", "dest", false),
+      ).rejects.toThrow("Job already exists at destination: dest")
+
+      // Move must NOT be called
+      expect(common.httpPost).not.toHaveBeenCalled()
+    })
+
+    it("should delete destination then move when overwrite=true", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "mv-crumb" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      // destination GET → 200
+      vi.mocked(common.httpGetJson).mockResolvedValueOnce({ name: "existing" })
+      // 1st POST = DELETE dest, 2nd POST = /move
+      vi.mocked(common.httpPost)
+        .mockResolvedValueOnce({ status: 200, headers: {} })
+        .mockResolvedValueOnce({ status: 200, headers: {} })
+
+      const result = await client.moveJob("folderA/my-job", "folderB/my-job", true)
+
+      expect(result).toEqual({
+        from: "folderA/my-job",
+        to: "folderB/my-job",
+        url: "https://jenkins.example.com/job/folderB/job/my-job",
+        renamed: false,
+      })
+      expect(common.httpPost).toHaveBeenCalledTimes(2)
+      expect(common.httpPost).toHaveBeenNthCalledWith(
+        1,
+        "https://jenkins.example.com/job/folderB/job/my-job/doDelete",
+        expect.anything(),
+      )
+      expect(common.httpPost).toHaveBeenNthCalledWith(
+        2,
+        "https://jenkins.example.com/job/folderA/job/my-job/move?destination=folderB%2Fmy-job",
+        expect.anything(),
+      )
+    })
+
+    it("should short-circuit when src === dest without HTTP", async () => {
+      const result = await client.moveJob("same", "same")
+
+      expect(result).toEqual({
+        from: "same",
+        to: "same",
+        url: "https://jenkins.example.com/job/same",
+        renamed: false,
+      })
+      expect(common.httpGetJson).not.toHaveBeenCalled()
+      expect(common.httpPost).not.toHaveBeenCalled()
+    })
+
+    it("should throw jobNotFound when /move returns 404", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "mv-crumb" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpGetJson).mockRejectedValueOnce(new Error("HTTP 404"))
+      // Note: httpPost does NOT throw on 404. We simulate the body of /move
+      // by rejecting inside httpPost for 404, matching the impl's expectation.
+      // The impl checks res.status >= 400 and throws Errors.unexpected with HTTP <n>.
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 404, headers: {} })
+
+      await expect(client.moveJob("missing", "dest")).rejects.toThrow(
+        "Job not found: missing",
+      )
+    })
+
+    it("should throw unexpected on non-404 error responses", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "mv-crumb" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpGetJson).mockRejectedValueOnce(new Error("HTTP 404"))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 500, headers: {} })
+
+      await expect(client.moveJob("src", "dest")).rejects.toThrow(
+        "Move job failed: HTTP 500",
       )
     })
   })
