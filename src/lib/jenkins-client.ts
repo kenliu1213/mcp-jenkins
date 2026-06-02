@@ -8,6 +8,8 @@ import {
   loadJenkinsEnv,
 } from "../common/index.js"
 
+import { basename } from "node:path"
+
 const jobPath = (name: string): string =>
   name.split("/").map(encodeURIComponent).join("/job/")
 
@@ -816,12 +818,18 @@ export class JenkinsClient {
       "Content-Type": "application/xml",
     })
     if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
-    const res = await httpPost(
-      `${this.baseUrl}/createItem?name=${encodeURIComponent(jobName)}`,
-      { headers, body: configXml },
-    )
+    // Support "folder1/folder2/jobname" by splitting and using the folder URL.
+    const parts = jobName.split("/")
+    const name = parts.pop()!
+    const folderPath = parts.length > 0 ? `job/${parts.map(encodeURIComponent).join("/job/")}` : ""
+    const url = folderPath
+      ? `${this.baseUrl}/${folderPath}/createItem?name=${encodeURIComponent(name)}`
+      : `${this.baseUrl}/createItem?name=${encodeURIComponent(jobName)}`
+    const res = await httpPost(url, { headers, body: configXml })
     if (res.status >= 400)
-      throw Errors.unexpected(`Create job failed: HTTP ${res.status}`)
+      throw Errors.unexpected(
+        `Create job failed: HTTP ${res.status} (${jobName} → ${url})`,
+      )
     return { jobName, created: true }
   }
 
@@ -883,6 +891,68 @@ export class JenkinsClient {
     } catch (e: any) {
       if (e.message?.includes("HTTP 404")) throw Errors.jobNotFound(fromName)
       throw e
+    }
+  }
+
+  async moveJob(
+    jobName: string,
+    destination: string,
+    overwrite = false,
+  ): Promise<{ from: string; to: string; url: string; renamed: boolean }> {
+    // No-op short-circuit
+    if (jobName === destination) {
+      return {
+        from: jobName,
+        to: destination,
+        url: `${this.baseUrl}/job/${jobPath(destination)}`,
+        renamed: false,
+      }
+    }
+
+    const crumb = await this.ensureCrumb()
+    const headers: Record<string, string> = this.headers()
+    if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+
+    // Pre-check: does destination exist?
+    let destExists = false
+    try {
+      await httpGetJson<any>(
+        `${this.baseUrl}/job/${jobPath(destination)}/api/json`,
+        { headers },
+      )
+      destExists = true
+    } catch (e: any) {
+      if (!e.message?.includes("HTTP 404")) throw e
+      // 404 = destination is free
+    }
+
+    if (destExists) {
+      if (!overwrite) {
+        throw Errors.destinationConflict(destination)
+      }
+      const delRes = await httpPost(
+        `${this.baseUrl}/job/${jobPath(destination)}/doDelete`,
+        { headers },
+      )
+      if (delRes.status >= 400) {
+        throw Errors.unexpected(`Delete existing job failed: HTTP ${delRes.status}`)
+      }
+    }
+
+    // Perform the move
+    const res = await httpPost(
+      `${this.baseUrl}/job/${jobPath(jobName)}/move?destination=${encodeURIComponent(destination)}`,
+      { headers },
+    )
+    if (res.status === 404) throw Errors.jobNotFound(jobName)
+    if (res.status >= 400)
+      throw Errors.unexpected(`Move job failed: HTTP ${res.status}`)
+
+    return {
+      from: jobName,
+      to: destination,
+      url: `${this.baseUrl}/job/${jobPath(destination)}`,
+      renamed: basename(jobName) !== basename(destination),
     }
   }
 

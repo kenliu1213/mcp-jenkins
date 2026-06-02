@@ -702,6 +702,22 @@ describe("JenkinsClient", () => {
         "Move job failed: HTTP 500",
       )
     })
+
+    it("should throw unexpected when destination delete fails during overwrite", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "mv-crumb" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      // destination GET → 200 (occupied)
+      vi.mocked(common.httpGetJson).mockResolvedValueOnce({ name: "existing" })
+      // 1st POST = doDelete → 403 (forbidden)
+      vi.mocked(common.httpPost).mockResolvedValueOnce({ status: 403, headers: {} })
+
+      await expect(
+        client.moveJob("folderA/my-job", "folderB/my-job", true),
+      ).rejects.toThrow("Delete existing job failed: HTTP 403")
+
+      // Move must NOT be called after a failed delete
+      expect(common.httpPost).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe("getNode", () => {
