@@ -8,7 +8,7 @@ import {
   loadJenkinsEnv,
 } from "../common/index.js"
 
-import { basename } from "node:path"
+import { basename, dirname } from "node:path"
 
 const jobPath = (name: string): string =>
   name.split("/").map(encodeURIComponent).join("/job/")
@@ -903,11 +903,29 @@ export class JenkinsClient {
       }
     }
 
+    // CloudBees RelocationAction.doMove keeps the original name. If the caller
+    // wants a different basename, surface that explicitly so they can reach for
+    // jenkins_rename_job instead of getting a silently-different URL.
+    if (basename(jobName) !== basename(destination)) {
+      throw Errors.unexpected(
+        `Move preserves the original name (CloudBees RelocationAction does not support rename via /move). Use jenkins_rename_job to rename, or pass a destination with the same basename as the source. (source basename: ${basename(jobName)}, destination basename: ${basename(destination)})`,
+      )
+    }
+
+    // CloudBees' doMove wants a target *container* path like "/L3" or "/"
+    // (full job path "/L3/job_name" is not a valid container). The full target
+    // URL we return uses the caller's full destination, but the wire form is the
+    // parent folder only.
+    const parent = dirname(destination)
+    const jenkinsDestination = parent === "." ? "/" : `/${parent}`
+
     const crumb = await this.ensureCrumb()
-    const headers: Record<string, string> = this.headers()
+    const headers: Record<string, string> = this.headers({
+      "Content-Type": "application/x-www-form-urlencoded",
+    })
     if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
 
-    // Pre-check: does destination exist?
+    // Pre-check: does the full destination path exist?
     let destExists = false
     try {
       await httpGetJson<any>(
@@ -933,20 +951,41 @@ export class JenkinsClient {
       }
     }
 
-    // Perform the move
+    // CloudBees RelocationAction.doMove lives at /job/<src>/move/move
+    // (RelocationAction's URL name is "move", and doMove → "move" by Stapler
+    // convention, so the absolute path is "move/move"). It accepts a
+    // form-urlencoded body and returns 302 to the new job URL on success, or
+    // 302 back to the form page (forwardToPreviousPage) on validation failure.
+    const body = new URLSearchParams({
+      destination: jenkinsDestination,
+      Submit: "Move",
+    }).toString()
     const res = await httpPost(
-      `${this.baseUrl}/job/${jobPath(jobName)}/move?destination=${encodeURIComponent(destination)}`,
-      { headers },
+      `${this.baseUrl}/job/${jobPath(jobName)}/move/move`,
+      { headers, body },
     )
+
     if (res.status === 404) throw Errors.jobNotFound(jobName)
-    if (res.status >= 400)
+    if (res.status >= 400) {
       throw Errors.unexpected(`Move job failed: HTTP ${res.status}`)
+    }
+    if (res.status === 302) {
+      // Success: Location is the new job URL.
+      // Failure (forwardToPreviousPage): Location is /job/<src>/move/.
+      const location = (res.headers["location"] ?? "") as string
+      if (!location || /\/move\/?$/.test(location)) {
+        throw Errors.unexpected(
+          `Move rejected by Jenkins (destination=${jenkinsDestination}). ` +
+          `Check that the destination folder exists and you have Create permission there.`,
+        )
+      }
+    }
 
     return {
       from: jobName,
       to: destination,
       url: `${this.baseUrl}/job/${jobPath(destination)}`,
-      renamed: basename(jobName) !== basename(destination),
+      renamed: false,
     }
   }
 
