@@ -529,6 +529,30 @@ describe("JenkinsClient", () => {
         expect.objectContaining({ body: "<project/>" }),
       )
     })
+
+    it("should throw jobNotFound when Jenkins returns 404", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb2" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 404, headers: {} })
+
+      await expect(
+        client.updateJobConfig("missing-job", "<project/>"),
+      ).rejects.toThrow("Job not found: missing-job")
+    })
+
+    it("should throw when Jenkins rejects the XML with 5xx", async () => {
+      // Regression: previously httpPost's return was discarded, so any non-401
+      // response was treated as success — including 5xx from XML validation
+      // failures. The tool would return { updated: true } while the change
+      // never took effect.
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb2" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 500, headers: {} })
+
+      await expect(
+        client.updateJobConfig("my-job", "<malformed/>"),
+      ).rejects.toThrow(/Update job config failed: HTTP 500/)
+    })
   })
 
   describe("renameJob", () => {

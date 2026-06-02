@@ -836,16 +836,28 @@ export class JenkinsClient {
       "Content-Type": "application/xml",
     })
     if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    let res: { status: number; headers: Record<string, string | null> }
     try {
-      await httpPost(`${this.baseUrl}/job/${jobPath(jobName)}/config.xml`, {
+      res = await httpPost(`${this.baseUrl}/job/${jobPath(jobName)}/config.xml`, {
         headers,
         body: configXml,
       })
-      return { jobName, updated: true }
     } catch (e: any) {
       if (e.message?.includes("HTTP 404")) throw Errors.jobNotFound(jobName)
       throw e
     }
+    // httpPost only throws on 401 — for every other response (including 4xx/5xx
+    // from Jenkins rejecting malformed XML, unsupported fields, etc.) it returns
+    // silently. Without this check, the tool reported { updated: true } while
+    // the config never took effect.
+    if (res.status === 404) throw Errors.jobNotFound(jobName)
+    if (res.status >= 400) {
+      throw Errors.unexpected(
+        `Update job config failed: HTTP ${res.status}. ` +
+        `Jenkins rejected the config — check that the XML is well-formed and the fields are valid for this job type.`,
+      )
+    }
+    return { jobName, updated: true }
   }
 
   async renameJob(
