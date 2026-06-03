@@ -867,16 +867,29 @@ export class JenkinsClient {
     const crumb = await this.ensureCrumb()
     const headers: Record<string, string> = this.headers()
     if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    let res: { status: number; headers: Record<string, string | null> }
     try {
-      await httpPost(
-        `${this.baseUrl}/job/${jobPath(jobName)}/rename?newName=${encodeURIComponent(newName)}`,
+      // /rename is the form-page URL (GET only) and returns 404 on POST. The
+      // action handler is /doRename — same pattern as RelocationAction's
+      // doMove at /move/move.
+      res = await httpPost(
+        `${this.baseUrl}/job/${jobPath(jobName)}/doRename?newName=${encodeURIComponent(newName)}`,
         { headers },
       )
-      return { oldName: jobName, newName, renamed: true }
     } catch (e: any) {
       if (e.message?.includes("HTTP 404")) throw Errors.jobNotFound(jobName)
       throw e
     }
+    // httpPost only throws on 401 — check 404/4xx/5xx explicitly so failures
+    // don't get reported as success.
+    if (res.status === 404) throw Errors.jobNotFound(jobName)
+    if (res.status >= 400) {
+      throw Errors.unexpected(
+        `Rename job failed: HTTP ${res.status}. ` +
+        `Check that the job exists, the new name is valid (no slashes/spaces, unique), and you have Create permission on the parent folder.`,
+      )
+    }
+    return { oldName: jobName, newName, renamed: true }
   }
 
   async copyJob(

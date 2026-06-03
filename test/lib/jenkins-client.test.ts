@@ -568,10 +568,34 @@ describe("JenkinsClient", () => {
         newName: "new-name",
         renamed: true,
       })
+      // Regression: /rename is the form-page URL (GET only) and 404s on POST.
+      // The action handler is /doRename.
       expect(common.httpPost).toHaveBeenCalledWith(
-        "https://jenkins.example.com/job/old-name/rename?newName=new-name",
+        "https://jenkins.example.com/job/old-name/doRename?newName=new-name",
         expect.anything(),
       )
+    })
+
+    it("should throw jobNotFound when Jenkins returns 404", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb3" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 404, headers: {} })
+
+      await expect(
+        client.renameJob("missing-job", "new-name"),
+      ).rejects.toThrow("Job not found: missing-job")
+    })
+
+    it("should throw when Jenkins rejects the rename with 4xx/5xx", async () => {
+      // Regression: response status used to be ignored, so /rename 404s and
+      // /doRename validation failures both reported { renamed: true }.
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb3" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 500, headers: {} })
+
+      await expect(
+        client.renameJob("old-name", "new-name"),
+      ).rejects.toThrow(/Rename job failed: HTTP 500/)
     })
   })
 
