@@ -13,7 +13,8 @@ const mockFetchResponse = (body: unknown, setCookie?: string) =>
     json: () => Promise.resolve(body),
   } as unknown as Response)
 
-vi.mock("../../src/common/index.js", () => {
+vi.mock(import("../../src/common/index.js"), async (importOriginal) => {
+  const actual = await importOriginal()
   class McpError extends Error {
     code: string
     status?: number
@@ -24,6 +25,7 @@ vi.mock("../../src/common/index.js", () => {
     }
   }
   return {
+    ...actual,
     httpGetJson: vi.fn(),
     httpGetText: vi.fn(),
     httpPost: vi.fn(),
@@ -797,6 +799,214 @@ describe("JenkinsClient", () => {
 
       // Move must NOT be called after a failed delete
       expect(common.httpPost).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe("getJobConfigHistory", () => {
+    it("should return normalized history entries", async () => {
+      const mockResponse = {
+        jobConfigHistory: [
+          {
+            date: "2026-06-04_17-40-09",
+            operation: "Changed",
+            user: "alice",
+            userID: "alice",
+            hasConfig: true,
+            oldName: "",
+            currentName: "",
+            changeReasonComment: null,
+          },
+          {
+            date: "2026-06-03_10-00-00",
+            operation: "Created",
+            user: null,
+            userID: "system",
+            hasConfig: true,
+            oldName: "",
+            currentName: "",
+            changeReasonComment: null,
+          },
+        ],
+      }
+      vi.mocked(common.httpGetJson).mockResolvedValue(mockResponse)
+
+      const result = await client.getJobConfigHistory("my-job")
+
+      expect(result).toEqual({
+        jobName: "my-job",
+        entries: [
+          {
+            date: "2026-06-04_17-40-09",
+            operation: "Changed",
+            user: "alice",
+            hasConfig: true,
+            oldName: "",
+            currentName: "",
+            changeReasonComment: null,
+          },
+          {
+            date: "2026-06-03_10-00-00",
+            operation: "Created",
+            user: "system",
+            hasConfig: true,
+            oldName: "",
+            currentName: "",
+            changeReasonComment: null,
+          },
+        ],
+      })
+      expect(common.httpGetJson).toHaveBeenCalledWith(
+        "https://jenkins.example.com/job/my-job/jobConfigHistory/api/json",
+        expect.anything(),
+      )
+    })
+
+    it("should fall back to userID when user is null", async () => {
+      vi.mocked(common.httpGetJson).mockResolvedValue({
+        jobConfigHistory: [
+          {
+            date: "2026-06-04_17-40-09",
+            operation: "Created",
+            user: null,
+            userID: "system",
+            hasConfig: true,
+            oldName: "",
+            currentName: "",
+            changeReasonComment: null,
+          },
+        ],
+      })
+
+      const result = await client.getJobConfigHistory("my-job")
+      expect(result.entries[0].user).toBe("system")
+    })
+
+    it("should return empty entries when the plugin has no data", async () => {
+      vi.mocked(common.httpGetJson).mockResolvedValue({ jobConfigHistory: [] })
+
+      const result = await client.getJobConfigHistory("untouched-job")
+      expect(result.entries).toEqual([])
+    })
+
+    it("should throw jobNotFound on 404", async () => {
+      vi.mocked(common.httpGetJson).mockRejectedValue(new Error("HTTP 404"))
+
+      await expect(client.getJobConfigHistory("missing")).rejects.toThrow(
+        "Job not found: missing",
+      )
+    })
+  })
+
+  describe("diffJobConfigVersions", () => {
+    it("should produce a unified diff between two versions", async () => {
+      vi.mocked(common.httpGetText)
+        .mockResolvedValueOnce("<x>1</x>\n<y>2</y>\n")
+        .mockResolvedValueOnce("<x>1</x>\n<y>3</y>\n")
+
+      const result = await client.diffJobConfigVersions(
+        "my-job",
+        "2026-06-01_00-00-00",
+        "2026-06-02_00-00-00",
+      )
+
+      expect(result.identical).toBe(false)
+      expect(result.fromTimestamp).toBe("2026-06-01_00-00-00")
+      expect(result.toTimestamp).toBe("2026-06-02_00-00-00")
+      expect(result.diff).toContain("--- 2026-06-01_00-00-00")
+      expect(result.diff).toContain("+++ 2026-06-02_00-00-00")
+      expect(result.diff).toContain("-<y>2</y>")
+      expect(result.diff).toContain("+<y>3</y>")
+      expect(common.httpGetText).toHaveBeenCalledTimes(2)
+      // Both calls hit the same plugin endpoint with different timestamps
+      const urls = vi.mocked(common.httpGetText).mock.calls.map((c) => c[0])
+      expect(urls[0]).toContain("jobConfigHistory/configOutput?type=raw&timestamp=2026-06-01_00-00-00")
+      expect(urls[1]).toContain("jobConfigHistory/configOutput?type=raw&timestamp=2026-06-02_00-00-00")
+    })
+
+    it("should report identical=true and empty diff when versions match", async () => {
+      const same = "<x>1</x>\n"
+      vi.mocked(common.httpGetText)
+        .mockResolvedValueOnce(same)
+        .mockResolvedValueOnce(same)
+
+      const result = await client.diffJobConfigVersions(
+        "my-job",
+        "2026-06-01_00-00-00",
+        "2026-06-01_00-00-00",
+      )
+
+      expect(result.identical).toBe(true)
+      expect(result.diff).toBe("")
+    })
+
+    it("should surface a helpful error when fromTimestamp does not exist", async () => {
+      // Unknown timestamp returns 200 with empty body (not 404) from the plugin.
+      vi.mocked(common.httpGetText).mockResolvedValueOnce("")
+
+      await expect(
+        client.diffJobConfigVersions(
+          "my-job",
+          "no-such-ts",
+          "2026-06-02_00-00-00",
+        ),
+      ).rejects.toThrow(/Config version not found: no-such-ts/)
+    })
+
+    it("should surface a helpful error when toTimestamp does not exist", async () => {
+      vi.mocked(common.httpGetText)
+        .mockResolvedValueOnce("<x>1</x>")
+        .mockResolvedValueOnce("")
+
+      await expect(
+        client.diffJobConfigVersions(
+          "my-job",
+          "2026-06-01_00-00-00",
+          "no-such-ts",
+        ),
+      ).rejects.toThrow(/Config version not found: no-such-ts/)
+    })
+  })
+
+  describe("restoreJobConfigVersion", () => {
+    it("should POST to the plugin's restore endpoint and return success", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb-r" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 302, headers: {} })
+
+      const result = await client.restoreJobConfigVersion(
+        "my-job",
+        "2026-06-01_00-00-00",
+      )
+
+      expect(result).toEqual({
+        jobName: "my-job",
+        restoredFrom: "2026-06-01_00-00-00",
+        restored: true,
+      })
+      expect(common.httpPost).toHaveBeenCalledWith(
+        "https://jenkins.example.com/job/my-job/jobConfigHistory/restore?timestamp=2026-06-01_00-00-00",
+        expect.anything(),
+      )
+    })
+
+    it("should throw jobNotFound on 404", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb-r" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 404, headers: {} })
+
+      await expect(
+        client.restoreJobConfigVersion("missing", "2026-06-01_00-00-00"),
+      ).rejects.toThrow("Job not found: missing")
+    })
+
+    it("should throw on 4xx/5xx with a helpful message", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb-r" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 500, headers: {} })
+
+      await expect(
+        client.restoreJobConfigVersion("my-job", "2026-06-01_00-00-00"),
+      ).rejects.toThrow(/Restore config version failed: HTTP 500/)
     })
   })
 

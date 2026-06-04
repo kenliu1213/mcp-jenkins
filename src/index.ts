@@ -47,6 +47,9 @@ import { updateJobConfig } from "./tools/update-job-config.js"
 import { renameJob } from "./tools/rename-job.js"
 import { copyJob } from "./tools/copy-job.js"
 import { moveJob } from "./tools/move-job.js"
+import { getJobConfigHistory } from "./tools/get-job-config-history.js"
+import { diffJobConfigVersions } from "./tools/diff-job-config-versions.js"
+import { restoreJobConfigVersion } from "./tools/restore-job-config-version.js"
 import { getNode } from "./tools/get-node.js"
 import { toggleNodeOffline } from "./tools/toggle-node-offline.js"
 import { listViews } from "./tools/list-views.js"
@@ -564,6 +567,66 @@ const rawTools: Tool[] = [
     },
   },
   {
+    name: "jenkins_get_job_config_history",
+    description:
+      "List configuration versions of a job tracked by the Job Configuration History plugin. Each entry has a timestamp usable with jenkins_diff_job_config_versions and jenkins_restore_job_config_version.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobName: {
+          type: "string",
+          description: "Job name or path (e.g. 'my-job' or 'folder/my-job')",
+        },
+      },
+      required: ["jobName"],
+    },
+  },
+  {
+    name: "jenkins_diff_job_config_versions",
+    description:
+      "Show a unified diff between two stored config versions of a job. Timestamps come from jenkins_get_job_config_history. Identical versions return identical=true with empty diff.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobName: {
+          type: "string",
+          description: "Job name or path",
+        },
+        fromTimestamp: {
+          type: "string",
+          description:
+            "Older timestamp (e.g. '2026-06-04_17-36-48') — must exist in the job's history",
+        },
+        toTimestamp: {
+          type: "string",
+          description:
+            "Newer timestamp — must exist in the job's history",
+        },
+      },
+      required: ["jobName", "fromTimestamp", "toTimestamp"],
+    },
+  },
+  {
+    name: "jenkins_restore_job_config_version",
+    description:
+      "Restore a job's configuration to a previously stored version (from the Job Configuration History plugin). The restore is itself recorded as a new history entry — there is no way to lose data via this operation.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobName: {
+          type: "string",
+          description: "Job name or path",
+        },
+        timestamp: {
+          type: "string",
+          description:
+            "Timestamp of the version to restore (from jenkins_get_job_config_history)",
+        },
+      },
+      required: ["jobName", "timestamp"],
+    },
+  },
+  {
     name: "jenkins_get_node",
     description: "Get detailed information about a specific Jenkins node/agent",
     inputSchema: {
@@ -716,6 +779,9 @@ const toolHandlers: Record<string, ToolHandler> = {
   jenkins_rename_job: renameJob,
   jenkins_copy_job: copyJob,
   jenkins_move_job: moveJob,
+  jenkins_get_job_config_history: getJobConfigHistory,
+  jenkins_diff_job_config_versions: diffJobConfigVersions,
+  jenkins_restore_job_config_version: restoreJobConfigVersion,
   jenkins_get_node: getNode,
   jenkins_toggle_node_offline: toggleNodeOffline,
   jenkins_list_views: listViews,
@@ -806,7 +872,7 @@ Examples:
   mcp-jenkins
 
   # Read-only monitoring (block all write tools)
-  MCP_JENKINS_BLOCK_TOOLS=jenkins_trigger_build,jenkins_stop_build,jenkins_delete_build,jenkins_cancel_queue,jenkins_enable_job,jenkins_disable_job,jenkins_delete_job,jenkins_create_job,jenkins_update_job_config,jenkins_rename_job,jenkins_copy_job,jenkins_toggle_node_offline,jenkins_quiet_down,jenkins_cancel_quiet_down,jenkins_safe_restart,jenkins_replay_build \\
+  MCP_JENKINS_BLOCK_TOOLS=jenkins_trigger_build,jenkins_stop_build,jenkins_delete_build,jenkins_cancel_queue,jenkins_enable_job,jenkins_disable_job,jenkins_delete_job,jenkins_create_job,jenkins_update_job_config,jenkins_rename_job,jenkins_copy_job,jenkins_toggle_node_offline,jenkins_quiet_down,jenkins_cancel_quiet_down,jenkins_safe_restart,jenkins_replay_build,jenkins_restore_job_config_version \\
   mcp-jenkins --url https://jenkins.example.com --bearer-token abc123
 
   # Allowlist — expose only job listing and status tools

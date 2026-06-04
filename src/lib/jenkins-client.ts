@@ -6,6 +6,7 @@ import {
   McpError,
   logger,
   loadJenkinsEnv,
+  unifiedDiff,
 } from "../common/index.js"
 
 import { basename, dirname } from "node:path"
@@ -1149,6 +1150,144 @@ export class JenkinsClient {
     if (res.status >= 400)
       throw Errors.unexpected(`Replay failed with status ${res.status}`)
     return { jobName, buildNumber, queueUrl: res.headers["location"] || null }
+  }
+
+  // --- Job Configuration History (jobConfigHistory plugin) --------------------
+  // The plugin stores prior versions of every job's XML and exposes them under
+  // /job/<name>/jobConfigHistory/. Without it, an agent has no way to undo a
+  // bad update_job_config — the restore below is the safety net for that.
+
+  async getJobConfigHistory(
+    jobName: string,
+  ): Promise<{
+    jobName: string
+    entries: Array<{
+      date: string
+      operation: string
+      user: string
+      hasConfig: boolean
+      oldName: string
+      currentName: string
+      changeReasonComment: string | null
+    }>
+  }> {
+    let data: any
+    try {
+      data = await httpGetJson<any>(
+        `${this.baseUrl}/job/${jobPath(jobName)}/jobConfigHistory/api/json`,
+        { headers: this.headers() },
+      )
+    } catch (e: any) {
+      if (e.message?.includes("HTTP 404")) throw Errors.jobNotFound(jobName)
+      if (e.message?.includes("HTTP 403")) {
+        throw Errors.unexpected(
+          `Job Configuration History plugin is not accessible for ${jobName}. ` +
+          `Check that the plugin is installed and that the user has Job/Configure permission.`,
+        )
+      }
+      throw e
+    }
+    const raw = Array.isArray(data?.jobConfigHistory) ? data.jobConfigHistory : []
+    return {
+      jobName,
+      entries: raw.map((e: any) => ({
+        date: e.date,
+        operation: e.operation,
+        user: e.user ?? e.userID ?? "",
+        hasConfig: e.hasConfig === true,
+        oldName: e.oldName ?? "",
+        currentName: e.currentName ?? "",
+        changeReasonComment: e.changeReasonComment ?? null,
+      })),
+    }
+  }
+
+  async diffJobConfigVersions(
+    jobName: string,
+    fromTimestamp: string,
+    toTimestamp: string,
+  ): Promise<{
+    jobName: string
+    fromTimestamp: string
+    toTimestamp: string
+    identical: boolean
+    diff: string
+  }> {
+    // Fetch both XMLs from the plugin. Doing the diff client-side avoids
+    // parsing the plugin's side-by-side HTML diff view, which is awkward to
+    // extract reliably. Line-based LCS is sufficient for Jenkins config XML
+    // since the controller pretty-prints it deterministically.
+    //
+    // The plugin exposes the config for a given timestamp at
+    // `configOutput?type=raw&timestamp=<ts>` — NOT `api/xml?timestamp=...`,
+    // which silently returns the entry list and ignores the timestamp filter.
+    // An unknown timestamp returns 200 with an empty body rather than 404.
+    // The endpoint can be slow (40s+) on the first cold-cache hit per
+    // (job, timestamp), then ~40ms after — give it a generous timeout.
+    const base = `${this.baseUrl}/job/${jobPath(jobName)}/jobConfigHistory/configOutput`
+    const fetchVersion = async (ts: string): Promise<string> => {
+      let body: string
+      try {
+        body = await httpGetText(
+          `${base}?type=raw&timestamp=${encodeURIComponent(ts)}`,
+          { headers: this.headers(), timeoutMs: 60000 },
+        )
+      } catch (e: any) {
+        if (e.message?.includes("HTTP 404")) {
+          throw Errors.unexpected(
+            `Config version not found: ${ts} for job ${jobName}. ` +
+            `Use get_job_config_history to see available timestamps.`,
+          )
+        }
+        throw e
+      }
+      if (!body || body.length === 0) {
+        throw Errors.unexpected(
+          `Config version not found: ${ts} for job ${jobName}. ` +
+          `Use get_job_config_history to see available timestamps.`,
+        )
+      }
+      return body
+    }
+    const fromXml = await fetchVersion(fromTimestamp)
+    const toXml = await fetchVersion(toTimestamp)
+    const identical = fromXml === toXml
+    const diff = identical
+      ? ""
+      : unifiedDiff(fromXml, toXml, fromTimestamp, toTimestamp)
+    return { jobName, fromTimestamp, toTimestamp, identical, diff }
+  }
+
+  async restoreJobConfigVersion(
+    jobName: string,
+    timestamp: string,
+  ): Promise<{ jobName: string; restoredFrom: string; restored: boolean }> {
+    const crumb = await this.ensureCrumb()
+    const headers: Record<string, string> = this.headers()
+    if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    let res: { status: number; headers: Record<string, string | null> }
+    try {
+      // Endpoint discovered by reading the plugin's restore-config.js: the
+      // form action is `restore?<query>` and POSTs to /job/<name>/jobConfigHistory/restore.
+      // The Jenkins handler returns 302 on success (Stapler redirect to the job
+      // page). On bad timestamp or insufficient perms, Jenkins returns 4xx/5xx.
+      res = await httpPost(
+        `${this.baseUrl}/job/${jobPath(jobName)}/jobConfigHistory/restore?timestamp=${encodeURIComponent(timestamp)}`,
+        { headers },
+      )
+    } catch (e: any) {
+      if (e.message?.includes("HTTP 404")) throw Errors.jobNotFound(jobName)
+      throw e
+    }
+    if (res.status === 404) throw Errors.jobNotFound(jobName)
+    if (res.status >= 400) {
+      throw Errors.unexpected(
+        `Restore config version failed: HTTP ${res.status}. ` +
+        `Check that the timestamp ${timestamp} exists in this job's history ` +
+        `and you have Job/Configure permission.`,
+      )
+    }
+    return { jobName, restoredFrom: timestamp, restored: true }
   }
 }
 
