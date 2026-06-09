@@ -500,7 +500,8 @@ const rawTools: Tool[] = [
   },
   {
     name: "jenkins_update_job_config",
-    description: "Update an existing job's XML configuration",
+    description:
+      "Update an existing job's XML configuration. After a successful POST, the tool re-reads the config to verify Jenkins actually reloaded the job — the response includes `verified: true` on success, or `verified: false` with a `warning` explaining when the file was written but the running job may still be using the old config (common with plugins like JCasC or Pipeline: Declarative that cache parsed config). In that case, retry the POST or call jenkins_safe_restart to force a reload.",
     inputSchema: {
       type: "object",
       properties: {

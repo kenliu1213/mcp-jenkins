@@ -518,18 +518,68 @@ describe("JenkinsClient", () => {
   })
 
   describe("updateJobConfig", () => {
-    it("should update job config", async () => {
+    it("should update job config and verify the change took effect", async () => {
       const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb2" }
       vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
       vi.mocked(common.httpPost).mockResolvedValue({ status: 200, headers: {} })
+      // Re-fetch returns a different-but-canonically-equal config (Jenkins
+      // re-serializes with different whitespace and attribute order). The
+      // comparison normalizes whitespace, so this should still verify.
+      vi.mocked(common.httpGetText).mockResolvedValue(
+        "<?xml version=\"1.0\"?>\n<project>\n  <description>v2</description>\n</project>\n",
+      )
+
+      const result = await client.updateJobConfig(
+        "my-job",
+        "<project><description>v2</description></project>",
+      )
+
+      expect(result).toEqual({
+        jobName: "my-job",
+        updated: true,
+        verified: true,
+      })
+      expect(result.warning).toBeUndefined()
+      expect(common.httpPost).toHaveBeenCalledWith(
+        "https://jenkins.example.com/job/my-job/config.xml",
+        expect.objectContaining({ body: "<project><description>v2</description></project>" }),
+      )
+      // Verification GET uses the same auth headers but a different URL.
+      expect(common.httpGetText).toHaveBeenCalledWith(
+        "https://jenkins.example.com/job/my-job/config.xml",
+        expect.objectContaining({ headers: expect.any(Object) }),
+      )
+    })
+
+    it("should report verified=false when re-reading shows a different value", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb2" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 200, headers: {} })
+      // Jenkins returns the old config — the POST was accepted but didn't
+      // reload the job (the failure mode that motivated this verification).
+      vi.mocked(common.httpGetText).mockResolvedValue("<project><description>old</description></project>")
+
+      const result = await client.updateJobConfig(
+        "my-job",
+        "<project><description>new</description></project>",
+      )
+
+      expect(result.verified).toBe(false)
+      expect(result.warning).toMatch(/Jenkins may not have reloaded/)
+      expect(result.warning).toMatch(/jenkins_safe_restart/)
+    })
+
+    it("should warn when the verification GET itself fails", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb2" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 200, headers: {} })
+      vi.mocked(common.httpGetText).mockRejectedValue(new Error("HTTP 500"))
 
       const result = await client.updateJobConfig("my-job", "<project/>")
 
-      expect(result).toEqual({ jobName: "my-job", updated: true })
-      expect(common.httpPost).toHaveBeenCalledWith(
-        "https://jenkins.example.com/job/my-job/config.xml",
-        expect.objectContaining({ body: "<project/>" }),
-      )
+      expect(result.verified).toBe(false)
+      expect(result.warning).toMatch(/could not re-fetch/)
+      expect(result.warning).toMatch(/HTTP 500/)
     })
 
     it("should throw jobNotFound when Jenkins returns 404", async () => {
@@ -540,6 +590,8 @@ describe("JenkinsClient", () => {
       await expect(
         client.updateJobConfig("missing-job", "<project/>"),
       ).rejects.toThrow("Job not found: missing-job")
+      // No verification GET is attempted on 404.
+      expect(common.httpGetText).not.toHaveBeenCalled()
     })
 
     it("should throw when Jenkins rejects the XML with 5xx", async () => {
@@ -554,6 +606,8 @@ describe("JenkinsClient", () => {
       await expect(
         client.updateJobConfig("my-job", "<malformed/>"),
       ).rejects.toThrow(/Update job config failed: HTTP 500/)
+      // No verification GET is attempted on 5xx.
+      expect(common.httpGetText).not.toHaveBeenCalled()
     })
   })
 

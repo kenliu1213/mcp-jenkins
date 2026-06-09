@@ -831,7 +831,12 @@ export class JenkinsClient {
   async updateJobConfig(
     jobName: string,
     configXml: string,
-  ): Promise<{ jobName: string; updated: boolean }> {
+  ): Promise<{
+    jobName: string
+    updated: boolean
+    verified: boolean
+    warning?: string
+  }> {
     const crumb = await this.ensureCrumb()
     const headers: Record<string, string> = this.headers({
       "Content-Type": "application/xml",
@@ -858,7 +863,48 @@ export class JenkinsClient {
         `Jenkins rejected the config — check that the XML is well-formed and the fields are valid for this job type.`,
       )
     }
-    return { jobName, updated: true }
+    // POST returned 2xx — re-read the config to confirm Jenkins actually
+    // reloaded the job. The standard /config.xml POST writes the file and
+    // reloads in one request, so this almost always matches. It can diverge
+    // when a plugin (JCasC, Pipeline: Declarative, Multi-branch) caches the
+    // parsed config in a way the POST doesn't invalidate — the file on disk
+    // is correct but the running job still uses the old value. When that
+    // happens, surface a warning so the agent knows to retry the POST or
+    // call jenkins_safe_restart instead of trusting the success response.
+    // Whitespace is normalized on both sides because Jenkins re-serializes
+    // the XML it stores (different attribute order, line breaks, etc.) and
+    // we don't want a re-format to look like a content mismatch. The
+    // inter-element whitespace strip is the key one — Jenkins pretty-prints
+    // with newlines+indentation between tags, the caller usually sends a
+    // single line, and a naive `\s+ → " "` collapses them to a single space
+    // that doesn't appear in the caller's payload.
+    const norm = (s: string) =>
+      s
+        .replace(/<\?xml[^?]*\?>/g, "")
+        .replace(/>\s+</g, "><")
+        .trim()
+    let verified = false
+    let warning: string | undefined
+    try {
+      const gotXml = await httpGetText(
+        `${this.baseUrl}/job/${jobPath(jobName)}/config.xml`,
+        { headers: this.headers() },
+      )
+      if (norm(gotXml) === norm(configXml)) {
+        verified = true
+      } else {
+        warning =
+          `POST returned ${res.status} but re-reading the config shows a ` +
+          `different value — Jenkins may not have reloaded the job. ` +
+          `Retry the POST, or call jenkins_safe_restart to force a reload.`
+      }
+    } catch (e: any) {
+      warning =
+        `Updated on disk but could not re-fetch the config to verify ` +
+        `(${e.message ?? String(e)}). If the change doesn't take effect, ` +
+        `retry the POST or call jenkins_safe_restart.`
+    }
+    return { jobName, updated: true, verified, warning }
   }
 
   async renameJob(
