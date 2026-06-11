@@ -815,8 +815,15 @@ export class JenkinsClient {
     configXml: string,
   ): Promise<{ jobName: string; created: boolean }> {
     const crumb = await this.ensureCrumb()
+    // The spec-compliant Content-Type per RFC 7303 is
+    // `application/xml; charset=utf-8`. Jenkins's `createItem` endpoint is
+    // lenient and accepts either form, but the matching `/config.xml`
+    // update endpoint 500s on non-ASCII bodies when charset is omitted
+    // (the XML declaration's encoding="UTF-8" alone is not enough for
+    // Jenkins's parser — the HTTP-level charset has to match too). Send
+    // it on both ends so the two endpoints stay symmetric.
     const headers: Record<string, string> = this.headers({
-      "Content-Type": "application/xml",
+      "Content-Type": "application/xml; charset=utf-8",
     })
     if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
     // For folder-scoped names like "L3/new_job", /createItem is the top-level
@@ -844,8 +851,11 @@ export class JenkinsClient {
     warning?: string
   }> {
     const crumb = await this.ensureCrumb()
+    // See createJob above for the charset rationale — the /config.xml
+    // update endpoint 500s on non-ASCII bodies without `charset=utf-8`,
+    // even when the XML declaration says encoding="UTF-8".
     const headers: Record<string, string> = this.headers({
-      "Content-Type": "application/xml",
+      "Content-Type": "application/xml; charset=utf-8",
     })
     if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
     let res: { status: number; headers: Record<string, string | null> }

@@ -499,7 +499,10 @@ describe("JenkinsClient", () => {
         "https://jenkins.example.com/createItem?name=new-job",
         expect.objectContaining({
           headers: expect.objectContaining({
-            "Content-Type": "application/xml",
+            // Must include charset=utf-8 — Jenkins's /config.xml endpoint 500s
+            // on non-ASCII bodies when the charset is omitted, even with a
+            // matching XML encoding declaration. See fix in updateJobConfig.
+            "Content-Type": "application/xml; charset=utf-8",
           }),
           body: "<project/>",
         }),
@@ -578,6 +581,33 @@ describe("JenkinsClient", () => {
       expect(common.httpGetText).toHaveBeenCalledWith(
         "https://jenkins.example.com/job/my-job/config.xml",
         expect.objectContaining({ headers: expect.any(Object) }),
+      )
+    })
+
+    it("should POST the Content-Type as application/xml; charset=utf-8", async () => {
+      // Regression: Jenkins's /config.xml endpoint 500s on non-ASCII bodies
+      // when the Content-Type omits the charset, even though the XML itself
+      // declares encoding="UTF-8". Sending `application/xml; charset=utf-8`
+      // makes the HTTP-level encoding explicit and is the spec-compliant
+      // form per RFC 7303.
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb2" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 200, headers: {} })
+      vi.mocked(common.httpGetText).mockResolvedValue("<project><description>ok</description></project>")
+
+      await client.updateJobConfig(
+        "my-job",
+        "<project><description>测试-中文</description></project>",
+      )
+
+      expect(common.httpPost).toHaveBeenCalledWith(
+        "https://jenkins.example.com/job/my-job/config.xml",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "Content-Type": "application/xml; charset=utf-8",
+          }),
+          body: "<project><description>测试-中文</description></project>",
+        }),
       )
     })
 
