@@ -515,6 +515,36 @@ describe("JenkinsClient", () => {
         "Create job failed",
       )
     })
+
+    it("should use folder-relative /createItem when the name contains a slash", async () => {
+      // Regression: top-level /createItem?name=L3/new_job treats the slash
+      // as a literal name character and 400s. The fix routes to
+      // /job/L3/createItem?name=new_job, matching how updateJobConfig uses
+      // jobPath() for /config.xml.
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb1" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 200, headers: {} })
+
+      await client.createJob("L3/new_job", "<project/>")
+
+      expect(common.httpPost).toHaveBeenCalledWith(
+        "https://jenkins.example.com/job/L3/createItem?name=new_job",
+        expect.objectContaining({ body: "<project/>" }),
+      )
+    })
+
+    it("should handle deeply nested folder paths", async () => {
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb1" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 200, headers: {} })
+
+      await client.createJob("a/b/c/job", "<project/>")
+
+      expect(common.httpPost).toHaveBeenCalledWith(
+        "https://jenkins.example.com/job/a/job/b/job/c/createItem?name=job",
+        expect.anything(),
+      )
+    })
   })
 
   describe("updateJobConfig", () => {
@@ -670,6 +700,20 @@ describe("JenkinsClient", () => {
       })
       expect(common.httpPost).toHaveBeenCalledWith(
         expect.stringContaining("from=source-job"),
+        expect.anything(),
+      )
+    })
+
+    it("should use folder-relative /createItem when the destination contains a slash", async () => {
+      // Same folder-routing caveat as createJob.
+      const mockCrumb = { crumbRequestField: "Jenkins-Crumb", crumb: "crumb4" }
+      vi.mocked(fetch).mockReturnValue(mockFetchResponse(mockCrumb))
+      vi.mocked(common.httpPost).mockResolvedValue({ status: 200, headers: {} })
+
+      await client.copyJob("source-job", "L3/copy-job")
+
+      expect(common.httpPost).toHaveBeenCalledWith(
+        "https://jenkins.example.com/job/L3/createItem?name=copy-job&from=source-job&mode=copy",
         expect.anything(),
       )
     })

@@ -819,10 +819,16 @@ export class JenkinsClient {
       "Content-Type": "application/xml",
     })
     if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
-    const res = await httpPost(
-      `${this.baseUrl}/createItem?name=${encodeURIComponent(jobName)}`,
-      { headers, body: configXml },
-    )
+    // For folder-scoped names like "L3/new_job", /createItem is the top-level
+    // endpoint and Jenkins treats the slash as a literal name character —
+    // 400 every time. Use the folder-relative endpoint instead, matching
+    // how updateJobConfig routes through jobPath() for /config.xml.
+    const slash = jobName.lastIndexOf("/")
+    const url =
+      slash === -1
+        ? `${this.baseUrl}/createItem?name=${encodeURIComponent(jobName)}`
+        : `${this.baseUrl}/job/${jobPath(jobName.slice(0, slash))}/createItem?name=${encodeURIComponent(jobName.slice(slash + 1))}`
+    const res = await httpPost(url, { headers, body: configXml })
     if (res.status >= 400)
       throw Errors.unexpected(`Create job failed: HTTP ${res.status}`)
     return { jobName, created: true }
@@ -946,11 +952,16 @@ export class JenkinsClient {
     const crumb = await this.ensureCrumb()
     const headers: Record<string, string> = this.headers()
     if (crumb) headers[crumb.crumbRequestField] = crumb.crumb
+    // For folder-scoped destinations, the same /createItem routing caveat
+    // as createJob applies — use the folder-relative endpoint when the new
+    // name contains a slash.
+    const slash = newName.lastIndexOf("/")
+    const url =
+      slash === -1
+        ? `${this.baseUrl}/createItem?name=${encodeURIComponent(newName)}&from=${encodeURIComponent(fromName)}&mode=copy`
+        : `${this.baseUrl}/job/${jobPath(newName.slice(0, slash))}/createItem?name=${encodeURIComponent(newName.slice(slash + 1))}&from=${encodeURIComponent(fromName)}&mode=copy`
     try {
-      const res = await httpPost(
-        `${this.baseUrl}/createItem?name=${encodeURIComponent(newName)}&from=${encodeURIComponent(fromName)}&mode=copy`,
-        { headers },
-      )
+      const res = await httpPost(url, { headers })
       if (res.status >= 400)
         throw Errors.unexpected(`Copy job failed: HTTP ${res.status}`)
       return { fromName, newName, copied: true }
